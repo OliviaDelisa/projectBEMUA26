@@ -3,6 +3,7 @@ import { SidebarProvider } from "./context/SidebarContext";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/admin/Dashboard";
+import Absensi from "./pages/admin/Absensi"; 
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
           <Route path="/" element={<Login />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/absensi" element={<Absensi />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>
