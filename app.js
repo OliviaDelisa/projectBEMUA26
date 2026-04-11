@@ -1,8 +1,9 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+require("dotenv").config({ override: true });
 
 console.log("RUN FROM:", __dirname);
+console.log(process.env);
 
 require("./db/initDB");
 
@@ -18,3 +19,4 @@ app.use("/api/users", userRoutes);
 app.listen(process.env.PORT, () => {
   console.log(`Server running on ${process.env.PORT}`);
 });
+
