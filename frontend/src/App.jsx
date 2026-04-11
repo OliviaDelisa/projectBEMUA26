@@ -13,10 +13,7 @@ function App() {
           <Route path="/" element={<Login />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          
-          {/* Sekarang Route ini sudah bisa mengenali komponen Absensi */}
           <Route path="/absensi" element={<Absensi />} />
-          
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>
