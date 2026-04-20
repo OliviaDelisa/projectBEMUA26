@@ -1,17 +1,16 @@
 import { useState, useEffect } from "react";
+import API from "../config/api";
 
 export default function ChangePassword() {
   const [form, setForm] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" });
   const [show, setShow] = useState({ old: false, new: false, confirm: false });
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null); // { type: "error"|"success", msg }
+  const [toast, setToast] = useState(null);
 
-  // Ambil user dari storage
   const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
   const user = stored ? JSON.parse(stored) : null;
 
   useEffect(() => {
-    // Kalau tidak ada user atau tidak perlu ganti password, redirect
     if (!user || !user.must_change_password) {
       window.location.href = "/";
     }
@@ -43,7 +42,8 @@ export default function ChangePassword() {
 
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/users/${user.id}/change-password`, {
+      // ✅ Gunakan API dari config, bukan hardcode IP
+      const res = await fetch(`${API}/users/${user.id}/change-password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -60,7 +60,6 @@ export default function ChangePassword() {
         return;
       }
 
-      // Update user di storage — set must_change_password jadi false
       const updatedUser = { ...user, must_change_password: false };
       const storage = localStorage.getItem("user") ? localStorage : sessionStorage;
       storage.setItem("user", JSON.stringify(updatedUser));
@@ -103,17 +102,12 @@ export default function ChangePassword() {
   return (
     <>
       {/* Toast */}
-      <div
-        style={{
-          position: "fixed",
-          top: 24,
-          left: "50%",
-          transform: `translateX(-50%) translateY(${toast ? "0" : "-120%"})`,
-          transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
-          zIndex: 50,
-          pointerEvents: toast ? "auto" : "none",
-        }}
-      >
+      <div style={{
+        position: "fixed", top: 24, left: "50%",
+        transform: `translateX(-50%) translateY(${toast ? "0" : "-120%"})`,
+        transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        zIndex: 50, pointerEvents: toast ? "auto" : "none",
+      }}>
         {toast && (
           <div className={`flex items-center gap-3 bg-white text-sm font-medium px-5 py-3 rounded-2xl shadow-lg whitespace-nowrap border
             ${toast.type === "success"
@@ -165,7 +159,6 @@ export default function ChangePassword() {
           {/* Form */}
           <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
-            {/* Password Lama */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Password Lama</label>
               <div className="relative">
@@ -179,7 +172,6 @@ export default function ChangePassword() {
               </div>
             </div>
 
-            {/* Password Baru */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Password Baru</label>
               <div className="relative">
@@ -193,7 +185,6 @@ export default function ChangePassword() {
               </div>
             </div>
 
-            {/* Konfirmasi Password */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Konfirmasi Password</label>
               <div className="relative">
@@ -205,8 +196,6 @@ export default function ChangePassword() {
                   <EyeIcon visible={show.confirm} />
                 </button>
               </div>
-
-              {/* Indikator cocok/tidak */}
               {form.confirmPassword && (
                 <p className={`text-xs mt-0.5 ${form.newPassword === form.confirmPassword ? "text-green-500" : "text-red-400"}`}>
                   {form.newPassword === form.confirmPassword ? "✓ Password cocok" : "✗ Password tidak cocok"}
@@ -214,7 +203,6 @@ export default function ChangePassword() {
               )}
             </div>
 
-            {/* Submit */}
             <button type="submit" disabled={loading}
               className="w-full h-12 mt-1 bg-[#00923D] hover:bg-[#007a32] text-white text-sm font-semibold
                          rounded-xl shadow-md shadow-[#00923D]/25 hover:shadow-lg hover:shadow-[#00923D]/35

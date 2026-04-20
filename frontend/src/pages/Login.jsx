@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import API from "../config/api";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -21,7 +22,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/users/login", {
+      const res = await fetch(`${API}/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: form.username, password: form.password }),
