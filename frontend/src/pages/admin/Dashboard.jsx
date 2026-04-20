@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import { Bar, Doughnut } from "react-chartjs-2";
@@ -31,18 +31,29 @@ export default function Dashboard() {
     return `${days[currentTime.getDay()]}, ${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()} · ${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
   };
 
-  // Data Dummy Grafik Bar Kehadiran
-  const barData = {
+  // PERBAIKAN: Menggunakan useMemo agar referensi barData stabil
+  const barData = useMemo(() => ({
     labels: ['Keuangan', 'Pendidikan', 'Kominfo', 'Sosmas', 'PSDM', 'Hukum', 'Lingk.', 'Kes.', 'Olahraga'],
     datasets: [{
       data: [88, 82, 76, 91, 69, 84, 72, 85, 78],
-      backgroundColor: (ctx) => {
-        const val = ctx.raw;
-        return val >= 85 ? '#22c55e' : val >= 75 ? '#f59e0b' : '#ef4444';
-      },
+      // Menggunakan array warna statis untuk stabilitas render
+      backgroundColor: [
+        '#22c55e', '#f59e0b', '#f59e0b', '#22c55e', '#ef4444', 
+        '#f59e0b', '#ef4444', '#22c55e', '#f59e0b'
+      ],
       borderRadius: 6,
     }]
-  };
+  }), []);
+
+  // PERBAIKAN: Menggunakan useMemo untuk doughnutData
+  const doughnutData = useMemo(() => ({
+    datasets: [{ 
+      data: [94, 18, 16], 
+      backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'], 
+      borderWidth: 0, 
+      cutout: '75%' 
+    }]
+  }), []);
 
   return (
     <div className="flex h-screen bg-[#f4f4ef] overflow-hidden">
@@ -76,7 +87,7 @@ export default function Dashboard() {
             {/* ABSENSI SEKRE (DONUT CHART) */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b flex justify-between items-center">
-                <span className="text-sm font-bold flex items-center gap-2 tracking-tight">
+                <span className="text-sm font-bold flex items-center gap-2 tracking-tight text-gray-700">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> 
                   Absensi Sekre Hari Ini
                 </span>
@@ -84,13 +95,9 @@ export default function Dashboard() {
               </div>
               <div className="p-6 flex items-center gap-8">
                 <div className="w-32 h-32 relative">
-                  <Doughnut 
-                    data={{
-                      datasets: [{ data: [94, 18, 16], backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'], borderWidth: 0, cutout: '75%' }]
-                    }} 
-                  />
+                  <Doughnut data={doughnutData} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold font-mono">94</span>
+                    <span className="text-xl font-bold font-mono text-gray-800">94</span>
                     <span className="text-[9px] text-gray-400">dari 128</span>
                   </div>
                 </div>
@@ -135,7 +142,7 @@ export default function Dashboard() {
             </div>
             
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-4 border-b bg-white font-bold text-sm tracking-tight">Ranking Kehadiran</div>
+              <div className="p-4 border-b bg-white font-bold text-sm tracking-tight text-gray-700">Ranking Kehadiran</div>
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-bold">
                    <tr><th className="p-3 text-left">#</th><th className="p-3 text-left">Kementerian</th><th className="p-3 text-right">PCT</th></tr>
@@ -183,9 +190,9 @@ function StatCard({ label, value, sub, badge, progress, type }) {
 function ProgressRow({ label, val, pct, color }) {
   return (
     <div className="w-full text-sm">
-      <div className="flex justify-between mb-1 font-semibold">
-        <span className="text-gray-500 text-xs">{label}</span>
-        <span className="font-mono text-xs">{val} <small className="text-gray-400 font-normal">{pct}</small></span>
+      <div className="flex justify-between mb-1 font-semibold text-gray-500">
+        <span className="text-xs">{label}</span>
+        <span className="font-mono text-xs text-gray-700">{val} <small className="text-gray-400 font-normal">{pct}</small></span>
       </div>
       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${color}`} style={{ width: pct }}></div></div>
     </div>
@@ -207,10 +214,10 @@ function KegiatanItem({ num, name, meta, badge, bColor }) {
 
 function RankRow({ rank, name, pct, color }) {
   return (
-    <tr className="hover:bg-gray-50 transition">
+    <tr className="hover:bg-gray-50 transition text-gray-700">
       <td className="p-3"><span className="w-5 h-5 bg-gray-100 flex items-center justify-center rounded-full text-[10px] font-bold text-gray-600">{rank}</span></td>
-      <td className="p-3 font-bold text-gray-700">{name}</td>
-      <td className="p-3">
+      <td className="p-3 font-bold">{name}</td>
+      <td className="p-3 text-right">
         <div className="flex items-center gap-2 justify-end">
           <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${color}`} style={{ width: `${pct}%` }}></div></div>
           <span className="font-mono font-bold text-gray-500">{pct}%</span>

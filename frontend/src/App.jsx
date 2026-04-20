@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/admin/Dashboard";
 import Absensi from "./pages/admin/Absensi";
+import ManajemenKegiatan from "./pages/admin/Kegiatan"; // 1. IMPORT DISINI
 import Home from "./pages/user/Home";
 import RiwayatAbsensi from "./pages/user/RiwayatAbsensi";
 
@@ -31,6 +32,13 @@ function App() {
           <Route path="/absensi" element={
             <ProtectedRoute allowedRoles={["superadmin", "admin"]}>
               <Absensi />
+            </ProtectedRoute>
+          } />
+
+          {/* 2. TAMBAHKAN ROUTE KEGIATAN DISINI */}
+          <Route path="/dashboard/kegiatan" element={
+            <ProtectedRoute allowedRoles={["superadmin", "admin"]}>
+              <ManajemenKegiatan />
             </ProtectedRoute>
           } />
 

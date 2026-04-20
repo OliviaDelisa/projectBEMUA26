@@ -8,8 +8,8 @@ const menus = [
     label: "Manajemen Absensi",
     children: [
       { label: "Dashboard", path: "/dashboard" },
-      { label: "Absensi", path: "/absensi" }, 
-      { label: "Kegiatan", path: "/dashboard/kegiatan" },
+      { label: "Manajemen Absensi", path: "/absensi" }, 
+      { label: "Manajemen Kegiatan", path: "kegiatan" },
       { label: "Piket", path: "/dashboard/piket" },
     ],
   },
