@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../config/api";
 
-const SEKRE_LAT = -0.92251;
-const SEKRE_LNG = 100.44827;
+const SEKRE_LAT = -0.9169685;
+const SEKRE_LNG = 100.4547321;
 const RADIUS_METER = 100;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
@@ -57,7 +57,7 @@ export default function Home() {
   const todayStr = `${hariList[today.getDay()]}, ${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
 
   const getCekWaktu = () => {
-    return { bisa: true, pesan: null };
+    //return { bisa: true, pesan: null };
     const now = new Date();
     const hari = now.getDay();
     const totalMenit = now.getHours() * 60 + now.getMinutes();
