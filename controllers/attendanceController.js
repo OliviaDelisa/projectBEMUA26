@@ -1,7 +1,7 @@
 const db = require("../db/db");
 
-const SEKRE_LAT = -0.92251;
-const SEKRE_LNG = 100.44827;
+const SEKRE_LAT    = -0.92251;
+const SEKRE_LNG    = 100.44827;
 const RADIUS_METER = 100;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
@@ -17,8 +17,6 @@ function hitungJarak(lat1, lng1, lat2, lng2) {
 
 // ── getHomeData ──────────────────────────────────────────────────
 // GET /attendance/home/:user_id
-// Tampilkan kegiatan yang sedang berlangsung ATAU akan datang
-// Kegiatan yang sudah lewat end_datetime disembunyikan otomatis
 exports.getHomeData = (req, res) => {
   const { user_id } = req.params;
   const today = new Date().toISOString().split("T")[0];
@@ -29,8 +27,13 @@ exports.getHomeData = (req, res) => {
     (err, secAtt) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
+      // ── FIX: tambah aa.selfie_photo as att_selfie_photo ──────────
       db.query(
-        `SELECT a.*, aa.status as att_status, aa.check_in_time as att_check_in
+        `SELECT a.*,
+                aa.status        AS att_status,
+                aa.check_in_time AS att_check_in,
+                aa.selfie_photo  AS att_selfie_photo,
+                aa.location_name AS att_location_name
          FROM activities a
          LEFT JOIN activity_attendance aa ON a.id = aa.activity_id AND aa.user_id = ?
          WHERE a.is_active = TRUE
@@ -79,22 +82,12 @@ exports.getSecretariatHistory = (req, res) => {
 };
 
 // ── getActivityHistory ───────────────────────────────────────────
-// GET /attendance/activity/history/:user_id?limit=20
-//
-// FIX: Sertakan semua kegiatan yang sudah selesai (end_datetime < NOW())
-//      untuk user ini, baik yang hadir maupun tidak hadir.
-//      Kegiatan yang belum selesai TIDAK masuk riwayat (masih di home).
-//
-//      Kolom yang dikembalikan:
-//      - aa.selfie_photo  → foto selfie kegiatan (LONGTEXT di DB)
-//      - a.start_datetime → tanggal kegiatan (untuk "tidak hadir" yang tidak punya check_in_time)
-//      - a.location_name  → sebagai activity_location
+// GET /attendance/activity/history/:user_id?limit=100
+// FIX: include kegiatan ongoing yang sudah diabsen (aa.status = 'hadir')
 exports.getActivityHistory = (req, res) => {
   const { user_id } = req.params;
   const limit = req.query.limit || 100;
 
-  // Strategi: LEFT JOIN dari activities ke activity_attendance
-  // Sehingga kegiatan yang sudah lewat tapi user tidak absen pun muncul (status = tidak_hadir / NULL)
   db.query(
     `SELECT
         aa.id,
@@ -108,15 +101,18 @@ exports.getActivityHistory = (req, res) => {
         COALESCE(aa.status, 'tidak_hadir') AS status,
         aa.created_at,
         a.title,
-        a.start_datetime   AS activity_date,
+        a.start_datetime AS activity_date,
         a.end_datetime,
-        a.location_name    AS activity_location
+        a.location_name  AS activity_location
      FROM activities a
      LEFT JOIN activity_attendance aa
         ON a.id = aa.activity_id AND aa.user_id = ?
      WHERE a.is_active = TRUE
-       AND a.end_datetime < NOW()
-     ORDER BY a.start_datetime DESC
+       AND (
+         a.end_datetime < NOW()
+         OR aa.status = 'hadir'
+       )
+     ORDER BY COALESCE(aa.check_in_time, a.start_datetime) DESC
      LIMIT ?`,
     [parseInt(user_id), parseInt(limit)],
     (err, result) => {
@@ -131,6 +127,21 @@ exports.getActivityHistory = (req, res) => {
 exports.checkInSecretariat = (req, res) => {
   const { user_id, latitude, longitude, location_name, selfie_photo, period_id } = req.body;
   const now = new Date();
+
+  // Validasi hari kerja (ubah hari === 7 ke hari === 6 setelah testing selesai)
+  const hari = now.getDay();
+  if (hari === 0 || hari === 7) {
+    return res.status(400).json({ message: "Absensi hanya tersedia hari Senin – Jumat" });
+  }
+
+  // Validasi jam
+  const totalMenit = now.getHours() * 60 + now.getMinutes();
+  if (totalMenit < 8 * 60) {
+    return res.status(400).json({ message: "Absensi belum dibuka. Mulai pukul 08:00" });
+  }
+  if (totalMenit > 18 * 60) {
+    return res.status(400).json({ message: "Absensi sudah ditutup. Maksimal pukul 18:00" });
+  }
 
   if (latitude == null || longitude == null) {
     return res.status(400).json({ message: "Data lokasi tidak lengkap" });
