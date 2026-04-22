@@ -1,7 +1,8 @@
 const db = require("../db/db");
 
-const SEKRE_LAT = -0.9169685;
-const SEKRE_LNG = 100.4547321;
+const SEKRE_LAT    = -0.92251;
+const SEKRE_LNG    = 100.44827;
+
 const RADIUS_METER = 100;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
@@ -27,8 +28,13 @@ exports.getHomeData = (req, res) => {
     (err, secAtt) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
+      // ── FIX: tambah aa.selfie_photo as att_selfie_photo ──────────
       db.query(
-        `SELECT a.*, aa.status as att_status, aa.check_in_time as att_check_in
+        `SELECT a.*,
+                aa.status        AS att_status,
+                aa.check_in_time AS att_check_in,
+                aa.selfie_photo  AS att_selfie_photo,
+                aa.location_name AS att_location_name
          FROM activities a
          LEFT JOIN activity_attendance aa ON a.id = aa.activity_id AND aa.user_id = ?
          WHERE a.is_active = TRUE
@@ -78,6 +84,8 @@ exports.getSecretariatHistory = (req, res) => {
 
 // ── getActivityHistory ───────────────────────────────────────────
 // GET /attendance/activity/history/:user_id?limit=20
+// GET /attendance/activity/history/:user_id?limit=100
+// FIX: include kegiatan ongoing yang sudah diabsen (aa.status = 'hadir')
 exports.getActivityHistory = (req, res) => {
   const { user_id } = req.params;
   const limit = req.query.limit || 100;
@@ -95,15 +103,18 @@ exports.getActivityHistory = (req, res) => {
         COALESCE(aa.status, 'tidak_hadir') AS status,
         aa.created_at,
         a.title,
-        a.start_datetime   AS activity_date,
+        a.start_datetime AS activity_date,
         a.end_datetime,
-        a.location_name    AS activity_location
+        a.location_name  AS activity_location
      FROM activities a
      LEFT JOIN activity_attendance aa
         ON a.id = aa.activity_id AND aa.user_id = ?
      WHERE a.is_active = TRUE
-       AND a.end_datetime < NOW()
-     ORDER BY a.start_datetime DESC
+       AND (
+         a.end_datetime < NOW()
+         OR aa.status = 'hadir'
+       )
+     ORDER BY COALESCE(aa.check_in_time, a.start_datetime) DESC
      LIMIT ?`,
     [parseInt(user_id), parseInt(limit)],
     (err, result) => {

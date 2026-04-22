@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../config/api";
 
-const SEKRE_LAT = -0.9169685;
-const SEKRE_LNG = 100.4547321;
+const SEKRE_LAT    = -0.92251;
+const SEKRE_LNG    = 100.44827;
 const RADIUS_METER = 100;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
@@ -25,45 +25,46 @@ export default function Home() {
   const navigate = useNavigate();
 
   const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
-  const user = stored ? JSON.parse(stored) : null;
+  const user   = stored ? JSON.parse(stored) : null;
 
-  const [homeData, setHomeData] = useState(null);
-  // history sekarang gabungan sekre + kegiatan
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
+  const [homeData, setHomeData]   = useState(null);
+  const [history, setHistory]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [toast, setToast]         = useState(null);
 
-  const [showCamera, setShowCamera] = useState(false);
-  const [currentAction, setCurrentAction] = useState(null);
-  const [location, setLocation] = useState(null);
-  const [locationName, setLocationName] = useState(null);
+  const [showCamera, setShowCamera]                   = useState(false);
+  const [currentAction, setCurrentAction]             = useState(null);
+  const [location, setLocation]                       = useState(null);
+  const [locationName, setLocationName]               = useState(null);
   const [currentLocationName, setCurrentLocationName] = useState("Mendapatkan lokasi...");
   const [loadingLocationName, setLoadingLocationName] = useState(false);
-  const [loadingLocation, setLoadingLocation] = useState(false);
-  const [loadingCheckin, setLoadingCheckin] = useState(false);
-  const [capturedPhoto, setCapturedPhoto] = useState(null);
-  const [captureTime, setCaptureTime] = useState(null);
-  const [distanceSekre, setDistanceSekre] = useState(null);
-  const [photoModal, setPhotoModal] = useState(null);
-  const [radiusError, setRadiusError] = useState(null);
+  const [loadingCheckin, setLoadingCheckin]           = useState(false);
+  const [capturedPhoto, setCapturedPhoto]             = useState(null);
+  const [captureTime, setCaptureTime]                 = useState(null);
+  const [distanceSekre, setDistanceSekre]             = useState(null);
+  const [photoModal, setPhotoModal]                   = useState(null);
+  const [radiusError, setRadiusError]                 = useState(null);
 
-  const videoRef = useRef(null);
+  // ── FIX: loadingFor melacak tombol mana yang sedang loading ──────────────
+  // null = tidak ada, "sekre" = tombol sekre, number = activity_id kegiatan
+  const [loadingFor, setLoadingFor] = useState(null);
+
+  const videoRef  = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
-  const today = new Date();
-  const hariList = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-  const bulanList = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  const todayStr = `${hariList[today.getDay()]}, ${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
+  const today    = new Date();
+  const hariList  = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+  const bulanList = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  const todayStr  = `${hariList[today.getDay()]}, ${today.getDate()}/${today.getMonth()+1}/${today.getFullYear()}`;
 
   const getCekWaktu = () => {
-    //return { bisa: true, pesan: null };
-    const now = new Date();
+    const now  = new Date();
     const hari = now.getDay();
     const totalMenit = now.getHours() * 60 + now.getMinutes();
     if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi hanya Senin – Jumat" };
-    if (totalMenit < 8 * 60) return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
-    if (totalMenit > 18 * 60) return { bisa: false, pesan: "Absensi ditutup pukul 18:00" };
+    if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
+    if (totalMenit > 18 * 60)    return { bisa: false, pesan: "Absensi ditutup pukul 18:00" };
     return { bisa: true, pesan: null };
   };
   const waktu = getCekWaktu();
@@ -71,17 +72,15 @@ export default function Home() {
   const isKegiatanBisaAbsen = (act) => new Date() >= new Date(act.start_datetime);
 
   const formatWaktuMulai = (dt) => {
-    const d = new Date(dt);
+    const d   = new Date(dt);
     const now = new Date();
-    const diffMs = d - now;
+    const diffMs    = d - now;
     if (diffMs <= 0) return null;
     const diffMenit = Math.floor(diffMs / 60000);
     const diffJam   = Math.floor(diffMenit / 60);
     const diffHari  = Math.floor(diffJam / 24);
-    if (diffHari > 0) {
-      return `Mulai ${d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })} pukul ${d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
-    }
-    if (diffJam > 0) return `Mulai ${diffJam} jam lagi · ${d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
+    if (diffHari > 0) return `Mulai ${d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })} pukul ${d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
+    if (diffJam > 0)  return `Mulai ${diffJam} jam lagi · ${d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
     return `Mulai ${diffMenit} menit lagi`;
   };
 
@@ -96,18 +95,12 @@ export default function Home() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1&zoom=18`
-          );
+          const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&addressdetails=1&zoom=18`);
           const data = await res.json();
           const addr = data.address;
           const namaGedung = data.name || addr?.amenity || addr?.building || addr?.office || addr?.shop || addr?.tourism || addr?.leisure || null;
-          const jalan = addr?.road ? `${addr.road}${addr?.house_number ? ` No.${addr.house_number}` : ""}` : null;
-          const lingkungan = addr?.quarter || addr?.hamlet || null;
-          const kelurahan  = addr?.neighbourhood || addr?.suburb || null;
-          const kecamatan  = addr?.city_district || addr?.county || null;
-          const kota       = addr?.city || addr?.town || addr?.village || null;
-          const parts = [namaGedung, jalan, lingkungan, kelurahan, kecamatan, kota].filter(Boolean);
+          const jalan      = addr?.road ? `${addr.road}${addr?.house_number ? ` No.${addr.house_number}` : ""}` : null;
+          const parts      = [namaGedung, jalan, addr?.quarter || addr?.hamlet, addr?.neighbourhood || addr?.suburb, addr?.city_district || addr?.county, addr?.city || addr?.town || addr?.village].filter(Boolean);
           setCurrentLocationName(parts.length > 0 ? parts.join(", ") : "Lokasi tidak diketahui");
         } catch { setCurrentLocationName("Lokasi tidak diketahui"); }
       },
@@ -136,31 +129,55 @@ export default function Home() {
         fetch(`${API}/attendance/activity/history/${user.id}?limit=10`),
       ]);
 
-      const homeJson  = await homeRes.json();
-      const sekreHist = await sekreHistRes.json();
-      // Hanya ambil kegiatan yang sudah hadir (yang muncul di riwayat home)
+      const homeJson   = await homeRes.json();
+      const sekreHist  = await sekreHistRes.json();
       const kegHistAll = await kegHistRes.json();
+
+      setHomeData(homeJson);
+
+      // Kegiatan dari endpoint history (sudah selesai atau sudah diabsen)
       const kegHist = Array.isArray(kegHistAll)
         ? kegHistAll.filter(i => i.status === "hadir")
         : [];
 
-      setHomeData(homeJson);
+      // ── FIX: gunakan att_selfie_photo dari backend ────────────────────
+      const kegOngoing = (homeJson?.activities || [])
+        .filter(act => act.att_status === "hadir")
+        .map(act => ({
+          id:            act.id,
+          activity_id:   act.id,
+          check_in_time: act.att_check_in,
+          location_name: act.att_location_name || act.location_name,
+          selfie_photo:  act.att_selfie_photo || null,
+          status:        "hadir",
+          title:         act.title,
+          _jenis:        "kegiatan",
+          _sortTime:     act.att_check_in,
+        }));
 
-      // Gabungkan + tandai jenis + urutkan terbaru
       const sekreTagged = (Array.isArray(sekreHist) ? sekreHist : []).map(i => ({
         ...i,
-        _jenis: "sekre",
+        _jenis:    "sekre",
         _sortTime: i.check_in_time || i.date,
       }));
+
       const kegTagged = kegHist.map(i => ({
         ...i,
-        _jenis: "kegiatan",
+        _jenis:    "kegiatan",
         _sortTime: i.check_in_time,
       }));
 
-      const merged = [...sekreTagged, ...kegTagged].sort(
-        (a, b) => new Date(b._sortTime) - new Date(a._sortTime)
-      ).slice(0, 5); // tampilkan 5 terbaru di home
+      // Deduplikasi berdasarkan activity_id, prioritaskan kegOngoing
+      const seenActivityIds = new Set();
+      const allKegiatan = [...kegOngoing, ...kegTagged].filter(i => {
+        if (seenActivityIds.has(i.activity_id)) return false;
+        seenActivityIds.add(i.activity_id);
+        return true;
+      });
+
+      const merged = [...sekreTagged, ...allKegiatan]
+        .sort((a, b) => new Date(b._sortTime) - new Date(a._sortTime))
+        .slice(0, 5);
 
       setHistory(merged);
     } catch {
@@ -189,10 +206,10 @@ export default function Home() {
   };
 
   const capturePhoto = () => {
-    const video = videoRef.current;
+    const video  = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    canvas.width = video.videoWidth;
+    canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.8));
@@ -207,18 +224,12 @@ export default function Home() {
   };
 
   const getReverseGeocode = async (lat, lng) => {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`
-    );
+    const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`);
     const data = await res.json();
     const addr = data.address;
     const namaGedung = data.name || addr?.amenity || addr?.building || addr?.shop || addr?.tourism || addr?.leisure || addr?.office || null;
-    const jalan = addr?.road ? `${addr.road}${addr?.house_number ? ` No.${addr.house_number}` : ""}` : null;
-    const lingkungan = addr?.quarter || addr?.hamlet || null;
-    const kelurahan = addr?.neighbourhood || addr?.suburb || null;
-    const kecamatan = addr?.city_district || addr?.county || null;
-    const kota = addr?.city || addr?.town || addr?.village || null;
-    const parts = [namaGedung, jalan, lingkungan, kelurahan, kecamatan, kota].filter(Boolean);
+    const jalan      = addr?.road ? `${addr.road}${addr?.house_number ? ` No.${addr.house_number}` : ""}` : null;
+    const parts      = [namaGedung, jalan, addr?.quarter || addr?.hamlet, addr?.neighbourhood || addr?.suburb, addr?.city_district || addr?.county, addr?.city || addr?.town || addr?.village].filter(Boolean);
     return parts.length > 0 ? parts.join(", ") : "Lokasi tidak diketahui";
   };
 
@@ -234,8 +245,10 @@ export default function Home() {
       );
     });
 
+  // ── FIX: gunakan loadingFor untuk melacak tombol mana yang loading ────────
   const handleAmbilAbsensi = async (type, activity_id = null) => {
-    setLoadingLocation(true);
+    const key = type === "sekre" ? "sekre" : activity_id;
+    setLoadingFor(key);
     setRadiusError(null);
     try {
       const loc = await getGPS();
@@ -245,7 +258,7 @@ export default function Home() {
         setDistanceSekre(jarak);
         if (jarak > RADIUS_METER) {
           setRadiusError(`Anda berada ${formatJarak(jarak)} dari Sekre BEM. Absensi hanya bisa dilakukan dalam radius ${RADIUS_METER}m.`);
-          setLoadingLocation(false);
+          setLoadingFor(null);
           return;
         }
       }
@@ -260,7 +273,7 @@ export default function Home() {
     } catch (err) {
       setToast({ type: "error", msg: err });
     } finally {
-      setLoadingLocation(false);
+      setLoadingFor(null);
     }
   };
 
@@ -268,14 +281,14 @@ export default function Home() {
     if (!capturedPhoto || !location) return;
     setLoadingCheckin(true);
     try {
-      const url = currentAction.type === "sekre"
+      const url  = currentAction.type === "sekre"
         ? `${API}/attendance/secretariat/checkin`
         : `${API}/attendance/activity/checkin`;
       const body = currentAction.type === "sekre"
         ? { user_id: user.id, latitude: location.latitude, longitude: location.longitude, location_name: locationName || "Sekre BEM", selfie_photo: capturedPhoto }
         : { activity_id: currentAction.activity_id, user_id: user.id, latitude: location.latitude, longitude: location.longitude, location_name: locationName || "Lokasi Kegiatan", selfie_photo: capturedPhoto };
 
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res  = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) { setToast({ type: "error", msg: data.message }); return; }
 
@@ -298,7 +311,6 @@ export default function Home() {
     if (!dt) return "-";
     return new Date(dt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
   };
-
   const formatDatetime = (dt) => {
     if (!dt) return "-";
     const d = new Date(dt);
@@ -307,7 +319,6 @@ export default function Home() {
 
   const sudahAbsenSekre = homeData?.secretariat_attendance !== null;
 
-  // ── Icons ─────────────────────────────────────────────────────────────────
   const IconCheck = () => (
     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M20 6L9 17l-5-5" />
@@ -329,11 +340,17 @@ export default function Home() {
       <circle cx="12" cy="10" r="2.5" />
     </svg>
   );
+  const Spinner = () => (
+    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    </svg>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
 
-      {/* Toast */}
+      {/* ── Toast ─────────────────────────────────────────────────────────── */}
       <div style={{
         position: "fixed", top: 24, left: "50%",
         transform: `translateX(-50%) translateY(${toast ? "0" : "-120%"})`,
@@ -350,12 +367,10 @@ export default function Home() {
         )}
       </div>
 
-      {/* Modal Foto Riwayat */}
+      {/* ── Modal Foto Riwayat ────────────────────────────────────────────── */}
       {photoModal && (
-        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
-          onClick={() => setPhotoModal(null)}>
-          <div className="w-full max-w-xs bg-white rounded-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4" onClick={() => setPhotoModal(null)}>
+          <div className="w-full max-w-xs bg-white rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-800">Foto Absensi</p>
               <button onClick={() => setPhotoModal(null)} className="text-gray-400 hover:text-gray-600">
@@ -367,14 +382,8 @@ export default function Home() {
             <div className="relative" style={{ aspectRatio: "3/4" }}>
               <img src={photoModal.src} alt="Selfie Absensi" className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent p-4 flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-white">
-                  <IconClock />
-                  <p className="text-xs font-medium">{photoModal.time}</p>
-                </div>
-                <div className="flex items-start gap-2 text-white">
-                  <IconPin />
-                  <p className="text-xs leading-relaxed">{photoModal.lokasi}</p>
-                </div>
+                <div className="flex items-center gap-2 text-white"><IconClock /><p className="text-xs font-medium">{photoModal.time}</p></div>
+                <div className="flex items-start gap-2 text-white"><IconPin /><p className="text-xs leading-relaxed">{photoModal.lokasi}</p></div>
                 {photoModal.jarak && (
                   <div className="self-start flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 text-white text-xs font-medium">
                     {formatJarak(photoModal.jarak)} dari Sekre BEM
@@ -386,22 +395,18 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal Kamera */}
+      {/* ── Modal Kamera ──────────────────────────────────────────────────── */}
       {showCamera && (
         <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-white rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-semibold text-gray-800">
-                {capturedPhoto ? "Konfirmasi Absensi" : "Ambil Selfie"}
-              </p>
-              <button onClick={() => { setShowCamera(false); stopCamera(); setCapturedPhoto(null); setCaptureTime(null); }}
-                className="text-gray-400 hover:text-gray-600">
+              <p className="text-sm font-semibold text-gray-800">{capturedPhoto ? "Konfirmasi Absensi" : "Ambil Selfie"}</p>
+              <button onClick={() => { setShowCamera(false); stopCamera(); setCapturedPhoto(null); setCaptureTime(null); }} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
-
             <div className="relative bg-black" style={{ aspectRatio: "3/4" }}>
               {!capturedPhoto ? (
                 <>
@@ -410,9 +415,7 @@ export default function Home() {
                     <div className="flex items-start gap-2 text-white">
                       <IconPin />
                       <div>
-                        {loadingLocationName ? (
-                          <p className="text-xs text-white/70">Mendapatkan nama lokasi...</p>
-                        ) : (
+                        {loadingLocationName ? <p className="text-xs text-white/70">Mendapatkan nama lokasi...</p> : (
                           <>
                             <p className="text-xs font-medium leading-relaxed">{locationName || "-"}</p>
                             {location && <p className="text-xs text-white/50 mt-0.5">{location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</p>}
@@ -450,19 +453,15 @@ export default function Home() {
                 </>
               )}
             </div>
-
             <canvas ref={canvasRef} className="hidden" />
-
             <div className="p-4 flex gap-3">
               {!capturedPhoto ? (
-                <button onClick={capturePhoto}
-                  className="flex-1 h-12 bg-[#00923D] text-white text-sm font-semibold rounded-xl hover:bg-[#007a32] transition active:scale-[0.98]">
+                <button onClick={capturePhoto} className="flex-1 h-12 bg-[#00923D] text-white text-sm font-semibold rounded-xl hover:bg-[#007a32] transition active:scale-[0.98]">
                   Ambil Foto
                 </button>
               ) : (
                 <>
-                  <button onClick={retakePhoto}
-                    className="flex-1 h-12 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition">
+                  <button onClick={retakePhoto} className="flex-1 h-12 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition">
                     Ulangi
                   </button>
                   <button onClick={handleSubmitAbsensi} disabled={loadingCheckin}
@@ -476,16 +475,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Header */}
+      {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="bg-[#00923D] px-5 pt-10 pb-16">
         <div className="max-w-lg mx-auto flex items-start justify-between">
           <div className="flex-1 min-w-0 pr-4">
             <p className="text-green-200 text-xs mb-1">Selamat Datang</p>
             <h1 className="text-white font-bold text-lg leading-tight">{user?.name?.toUpperCase()}</h1>
             <p className="text-green-100 text-xs mt-0.5">{user?.nim}</p>
-            <p className="text-green-100 text-xs font-medium mt-1">
-              {user?.jabatan} {user?.kementerian ? `— ${user.kementerian}` : ""}
-            </p>
+            <p className="text-green-100 text-xs font-medium mt-1">{user?.jabatan} {user?.kementerian ? `— ${user.kementerian}` : ""}</p>
             <div className="flex flex-col gap-1 mt-3">
               <div className="flex items-start gap-1.5 text-green-100 text-xs">
                 <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -497,19 +494,16 @@ export default function Home() {
               <div className="flex items-center gap-1.5 text-green-100 text-xs">
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
                 {todayStr}
               </div>
             </div>
           </div>
-
           <div className="flex items-center gap-3 mt-1 shrink-0">
             <button className="relative text-white/80 hover:text-white transition">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </button>
             <button onClick={handleLogout} className="text-white/70 hover:text-white transition">
@@ -521,7 +515,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* ── Konten ────────────────────────────────────────────────────────── */}
       <div className="max-w-lg mx-auto px-4 -mt-10 pb-10 flex flex-col gap-4">
         {loading ? (
           <div className="bg-white rounded-2xl p-8 flex items-center justify-center">
@@ -532,7 +526,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {/* ── Notif Piket ──────────────────────────────────────────── */}
+            {/* ── Notif Piket ── */}
             {homeData?.has_duty && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -542,14 +536,12 @@ export default function Home() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Piket Hari Ini!</p>
-                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                    {user?.kementerian} mendapat jadwal piket sekretariat hari ini. Pastikan hadir tepat waktu.
-                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">{user?.kementerian} mendapat jadwal piket sekretariat hari ini.</p>
                 </div>
               </div>
             )}
 
-            {/* ── Absensi Sekretariat ──────────────────────────────────── */}
+            {/* ── Absensi Sekretariat ── */}
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-bold text-gray-800">Absensi Sekretariat</h2>
@@ -582,20 +574,13 @@ export default function Home() {
 
               {sudahAbsenSekre ? (
                 <div className="flex flex-col gap-2.5 mb-3 p-4 rounded-2xl bg-green-50 border border-green-100">
-                  <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
-                    <IconCheck />
-                    <span>Anda sudah absen</span>
-                  </div>
+                  <div className="flex items-center gap-2 text-green-600 text-sm font-semibold"><IconCheck /><span>Anda sudah absen</span></div>
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <IconClock />
-                    <span>
-                      {formatTime(homeData.secretariat_attendance.check_in_time)},{" "}
-                      {new Date(homeData.secretariat_attendance.check_in_time).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
-                    </span>
+                    <span>{formatTime(homeData.secretariat_attendance.check_in_time)}, {new Date(homeData.secretariat_attendance.check_in_time).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</span>
                   </div>
                   <div className="flex items-start gap-2 text-xs text-gray-500">
-                    <IconPin />
-                    <span className="leading-relaxed">{homeData.secretariat_attendance.location_name || "Sekre BEM"}</span>
+                    <IconPin /><span className="leading-relaxed">{homeData.secretariat_attendance.location_name || "Sekre BEM"}</span>
                   </div>
                   {homeData.secretariat_attendance.distance_meters != null && (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -607,26 +592,17 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-red-400 text-sm mb-3">
-                  <IconWarning />
-                  <span>Anda belum absen hari ini</span>
-                </div>
+                <div className="flex items-center gap-2 text-red-400 text-sm mb-3"><IconWarning /><span>Anda belum absen hari ini</span></div>
               )}
 
+              {/* ── FIX: tombol sekre hanya loading saat loadingFor === "sekre" ── */}
               <button
                 onClick={() => handleAmbilAbsensi("sekre")}
-                disabled={sudahAbsenSekre || loadingLocation || !waktu.bisa}
-                className="w-full h-11 bg-[#00923D] hover:bg-[#007a32] text-white text-sm font-semibold
-                  rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={sudahAbsenSekre || loadingFor !== null || !waktu.bisa}
+                className="w-full h-11 bg-[#00923D] hover:bg-[#007a32] text-white text-sm font-semibold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loadingLocation ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                    Mencari lokasi...
-                  </span>
+                {loadingFor === "sekre" ? (
+                  <span className="flex items-center justify-center gap-2"><Spinner />Mencari lokasi...</span>
                 ) : sudahAbsenSekre ? "Sudah Absen" : !waktu.bisa ? "Absensi Tidak Tersedia" : "Ambil Absensi Sekre"}
               </button>
 
@@ -640,7 +616,7 @@ export default function Home() {
               )}
             </div>
 
-            {/* ── Absensi Kegiatan ─────────────────────────────────────── */}
+            {/* ── Absensi Kegiatan ── */}
             {homeData?.activities?.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm p-5">
                 <h2 className="text-sm font-bold text-gray-800 mb-3">Absensi Kegiatan</h2>
@@ -649,6 +625,7 @@ export default function Home() {
                     const sudahAbsen = act.att_status === "hadir";
                     const bisaAbsen  = isKegiatanBisaAbsen(act);
                     const infoWaktu  = !bisaAbsen ? formatWaktuMulai(act.start_datetime) : null;
+                    const isLoadingThis = loadingFor === act.id;
 
                     return (
                       <div key={act.id} className="border border-gray-100 rounded-xl p-4">
@@ -663,32 +640,25 @@ export default function Home() {
                           </div>
                         )}
                         <p className="text-sm font-semibold text-gray-800 mb-2">{act.title}</p>
-                        {act.description && (
-                          <p className="text-xs text-gray-400 mb-2 leading-relaxed">{act.description}</p>
-                        )}
+                        {act.description && <p className="text-xs text-gray-400 mb-2 leading-relaxed">{act.description}</p>}
                         <div className="flex flex-col gap-1.5 mb-3">
-                          <div className="flex items-start gap-2 text-xs text-gray-400">
-                            <IconPin />
-                            <span className="leading-relaxed">{act.location_name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-400">
-                            <IconClock />
-                            <span>{formatDatetime(act.start_datetime)} – Selesai</span>
-                          </div>
+                          <div className="flex items-start gap-2 text-xs text-gray-400"><IconPin /><span className="leading-relaxed">{act.location_name}</span></div>
+                          <div className="flex items-center gap-2 text-xs text-gray-400"><IconClock /><span>{formatDatetime(act.start_datetime)} – Selesai</span></div>
                         </div>
                         {sudahAbsen && (
                           <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-xs text-green-600 font-semibold mb-2">
-                            <IconCheck />
-                            <span>Sudah absen · {formatTime(act.att_check_in)}</span>
+                            <IconCheck /><span>Sudah absen · {formatTime(act.att_check_in)}</span>
                           </div>
                         )}
+                        {/* ── FIX: tombol kegiatan hanya loading saat isLoadingThis ── */}
                         <button
                           onClick={() => handleAmbilAbsensi("kegiatan", act.id)}
-                          disabled={sudahAbsen || loadingLocation || !bisaAbsen}
-                          className="w-full h-10 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold
-                            rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={sudahAbsen || loadingFor !== null || !bisaAbsen}
+                          className="w-full h-10 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {sudahAbsen ? "Sudah Absen" : !bisaAbsen ? "Belum Dibuka" : "Ambil Absensi Kegiatan"}
+                          {isLoadingThis ? (
+                            <span className="flex items-center justify-center gap-2"><Spinner />Mencari lokasi...</span>
+                          ) : sudahAbsen ? "Sudah Absen" : !bisaAbsen ? "Belum Dibuka" : "Ambil Absensi Kegiatan"}
                         </button>
                         {!sudahAbsen && !bisaAbsen && infoWaktu && (
                           <div className="flex items-center justify-center gap-1.5 mt-1.5">
@@ -699,9 +669,7 @@ export default function Home() {
                           </div>
                         )}
                         {!sudahAbsen && bisaAbsen && (
-                          <p className="text-xs text-gray-400 text-center mt-1.5">
-                            Absen dapat diambil sesuai waktu pelaksanaan
-                          </p>
+                          <p className="text-xs text-gray-400 text-center mt-1.5">Absen dapat diambil sesuai waktu pelaksanaan</p>
                         )}
                       </div>
                     );
@@ -710,7 +678,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* ── Riwayat Absensi (gabungan sekre + kegiatan) ──────────── */}
+            {/* ── Riwayat Absensi ── */}
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <h2 className="text-sm font-bold text-gray-800 mb-3">Riwayat Absensi</h2>
               {history.length === 0 ? (
@@ -718,17 +686,18 @@ export default function Home() {
               ) : (
                 <div className="flex flex-col gap-1">
                   {history.map((item, idx) => {
-                    const d = item.check_in_time ? new Date(item.check_in_time) : null;
-                    const timeStr = d ? d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-";
-                    const dateStr = d ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
+                    const d          = item.check_in_time ? new Date(item.check_in_time) : null;
+                    const timeStr    = d ? d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-";
+                    const dateStr    = d ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
                     const isKegiatan = item._jenis === "kegiatan";
+                    const fotoSrc    = item.selfie_photo
+                      ? (item.selfie_photo.startsWith("data:") ? item.selfie_photo : `data:image/jpeg;base64,${item.selfie_photo}`)
+                      : null;
 
                     return (
                       <div key={item.id ?? idx} className="py-3 border-b border-gray-50 last:border-0">
                         <div className="flex items-start gap-3">
-                          {/* Icon status */}
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5
-                            ${item.status === "hadir" ? "bg-green-50" : "bg-red-50"}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${item.status === "hadir" ? "bg-green-50" : "bg-red-50"}`}>
                             {item.status === "hadir" ? (
                               <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -739,7 +708,6 @@ export default function Home() {
                               </svg>
                             )}
                           </div>
-
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-xs font-semibold text-gray-700">{timeStr} · {dateStr}</p>
@@ -747,40 +715,22 @@ export default function Home() {
                                 {item.status === "hadir" ? "Hadir" : "Tidak Hadir"}
                               </span>
                             </div>
-
-                            {/* Lokasi */}
                             <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                               {item.location_name || (isKegiatan ? "Lokasi Kegiatan" : "Sekre BEM")}
                             </p>
-
-                            {/* Jarak — hanya sekre */}
                             {!isKegiatan && item.distance_meters != null && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {formatJarak(item.distance_meters)} dari Sekre BEM
-                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">{formatJarak(item.distance_meters)} dari Sekre BEM</p>
                             )}
-
-                            {/* Label jenis */}
                             <div className="mt-0.5">
                               {isKegiatan ? (
-                                <>
-                                  <p className="text-xs text-gray-400">{item.title || "Kegiatan"}</p>
-                                  <p className="text-xs text-gray-300">Absen Kegiatan</p>
-                                </>
+                                <><p className="text-xs text-gray-400">{item.title || "Kegiatan"}</p><p className="text-xs text-gray-300">Absen Kegiatan</p></>
                               ) : (
                                 <p className="text-xs text-gray-300">Absen Sekre</p>
                               )}
                             </div>
-
-                            {/* Tombol lihat foto */}
-                            {item.selfie_photo && (
+                            {fotoSrc && (
                               <button
-                                onClick={() => setPhotoModal({
-                                  src: item.selfie_photo.startsWith("data:") ? item.selfie_photo : `data:image/jpeg;base64,${item.selfie_photo}`,
-                                  time: `${timeStr}, ${dateStr}`,
-                                  lokasi: item.location_name || (isKegiatan ? "Lokasi Kegiatan" : "Sekre BEM"),
-                                  jarak: isKegiatan ? null : item.distance_meters,
-                                })}
+                                onClick={() => setPhotoModal({ src: fotoSrc, time: `${timeStr}, ${dateStr}`, lokasi: item.location_name || (isKegiatan ? "Lokasi Kegiatan" : "Sekre BEM"), jarak: isKegiatan ? null : item.distance_meters })}
                                 className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#00923D] hover:opacity-70 transition"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -797,7 +747,6 @@ export default function Home() {
                   })}
                 </div>
               )}
-
               <button
                 onClick={() => navigate("/riwayat-absensi")}
                 className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs text-[#00923D] font-semibold hover:opacity-70 transition"
