@@ -1,3 +1,3 @@
-const API = "http://10.189.14.27:5000/api"; // ganti IP
+const API = "http://10.192.170.27:5000/api"; 
 
-export default API;
+export default API; 

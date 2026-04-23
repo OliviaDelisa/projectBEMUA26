@@ -28,6 +28,61 @@ exports.getAdminSecretariatMonitor = (req, res) => {
     });
 };
 
+// --- PERBAIKAN: Menambahkan fungsi getSecretariatRekap yang dipanggil di Routes ---
+exports.getSecretariatRekap = (req, res) => {
+    const { startDate, endDate, kementerian } = req.query;
+
+    let query = `
+        SELECT 
+            u.id as user_id, u.name, u.nim, u.kementerian,
+            sa.date, sa.status
+        FROM users u
+        LEFT JOIN secretariat_attendance sa ON u.id = sa.user_id 
+            AND sa.date BETWEEN ? AND ?
+        WHERE u.role = 'user'
+    `;
+    const params = [startDate, endDate];
+
+    if (kementerian && kementerian !== 'all') {
+        query += " AND u.kementerian = ?";
+        params.push(kementerian);
+    }
+
+    query += " ORDER BY u.name ASC, sa.date ASC";
+
+    db.query(query, params, (err, result) => {
+        if (err) return res.status(500).json({ message: "Gagal mengambil rekap", error: err });
+        
+        // Transformasi data agar sesuai dengan format grid di frontend
+        const rekap = result.reduce((acc, curr) => {
+            if (!acc[curr.user_id]) {
+                acc[curr.user_id] = {
+                    id: curr.user_id,
+                    name: curr.name,
+                    nim: curr.nim,
+                    kementerian: curr.kementerian,
+                    attendance: {}
+                };
+            }
+            
+            if (curr.date) {
+                // PERBAIKAN: Gunakan metode manual agar format tanggal YYYY-MM-DD murni
+                // dan tidak bergeser karena Timezone ISOString
+                const d = new Date(curr.date);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dateKey = `${year}-${month}-${day}`;
+                
+                acc[curr.user_id].attendance[dateKey] = curr.status;
+            }
+            return acc;
+        }, {});
+
+        res.json(Object.values(rekap));
+    });
+};
+
 // Update status absen (Validasi Admin)
 exports.validateAttendance = (req, res) => {
     const { id } = req.params;

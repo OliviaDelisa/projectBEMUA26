@@ -1,12 +1,32 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
 import { Check, X, Eye, MapPin, Clock, FileSpreadsheet, LayoutGrid, ClipboardCheck } from "lucide-react";
+import * as XLSX from 'xlsx'; // Import untuk fitur Export
 
 const today = new Date();
-const fmt = (d) => d.toISOString().slice(0, 10);
+
+// PERBAIKAN: Fungsi format tanggal manual agar sinkron dengan Backend terlepas dari Timezone
+const fmt = (date) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const getDayName = (d) => ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][d.getDay()];
+
+// DAFTAR KEMENTERIAN SESUAI PERMINTAAN
+const daftarKementerian = [
+  "Kepresidenan", "Komunikasi dan Informasi", "Pengembangan Sumber Daya Manusia",
+  "Kebijakan Daerah", "Kebijakan Nasional", "Kebijakan Kampus",
+  "Riset dan Keilmuan", "Sekretaris Kabinet", "Lingkungan Hidup",
+  "Sosial dan Masyarakat", "Dalam Negeri", "Luar Negeri",
+  "Advokasi Kesejahteraan Mahasiswa", "Pergerakan Perempuan",
+  "Media Event dan Bisnis", "Audit Internal", "Keuangan"
+];
 
 export default function Absensi() {
   const [activeView, setActiveView] = useState("validasi"); // 'validasi' atau 'rekap'
@@ -14,30 +34,28 @@ export default function Absensi() {
   const [dateFrom, setDateFrom] = useState(fmt(today));
   
   // State Data
-  const [attendanceData, setAttendanceData] = useState([]);
+  const [attendanceData, setAttendanceData] = useState([]); // Untuk Validasi Harian
+  const [rekapData, setRekapData] = useState([]);           // Untuk Rekapitulasi Grid
   const [loading, setLoading] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
-  // PERBAIKAN: State Rekapitulasi menggunakan Rentang Tanggal
-  const [rekapDateStart, setRekapDateStart] = useState(fmt(new Date(today.getFullYear(), today.getMonth(), 1))); // Awal bulan ini
+  // State Rekapitulasi menggunakan Rentang Tanggal
+  const [rekapDateStart, setRekapDateStart] = useState(fmt(new Date(today.getFullYear(), today.getMonth(), 1))); 
   const [rekapDateEnd, setRekapDateEnd] = useState(fmt(today));
   const [rekapDates, setRekapDates] = useState([]);
 
   // State khusus Export
-  const [exportPeriod, setExportPeriod] = useState("today");
   const [exportMsg, setExportMsg] = useState("");
 
-  // PERBAIKAN: Logic generate kolom tanggal berdasarkan Rentang Tanggal yang dipilih
+  // Logic generate kolom tanggal berdasarkan Rentang Tanggal yang dipilih
   useEffect(() => {
     let generatedDates = [];
     const start = new Date(rekapDateStart);
     const end = new Date(rekapDateEnd);
     let curr = new Date(start);
 
-    // Batasi generate agar tidak membuat browser crash jika rentang terlalu jauh (max 62 hari)
     let count = 0;
     while (curr <= end && count < 62) {
-      // Hanya tampilkan Senin - Jumat (1-5)
       if (curr.getDay() >= 1 && curr.getDay() <= 5) {
         generatedDates.push(new Date(curr));
       }
@@ -47,6 +65,7 @@ export default function Absensi() {
     setRekapDates(generatedDates);
   }, [rekapDateStart, rekapDateEnd]);
 
+  // Fungsi Fetch Data Validasi (Harian)
   const fetchAttendance = async () => {
     setLoading(true);
     try {
@@ -60,9 +79,28 @@ export default function Absensi() {
     }
   };
 
+  // Fungsi Fetch Data Rekap (Grid Periode)
+  const fetchRekap = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/admin/attendance/rekap?startDate=${rekapDateStart}&endDate=${rekapDateEnd}&kementerian=${filterKem}`);
+      const data = await res.json();
+      setRekapData(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Gagal load rekap");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Trigger fetch berdasarkan tab yang aktif
   useEffect(() => {
-    fetchAttendance();
-  }, [filterKem, dateFrom]);
+    if (activeView === "validasi") {
+      fetchAttendance();
+    } else {
+      fetchRekap();
+    }
+  }, [activeView, filterKem, dateFrom, rekapDateStart, rekapDateEnd]);
 
   const handleValidate = async (id, status) => {
     try {
@@ -77,8 +115,32 @@ export default function Absensi() {
     }
   };
 
+  // FUNGSI EXPORT KE EXCEL
   const handleExport = () => {
-    setExportMsg(`✓ File Excel berhasil diekspor untuk periode tersebut.`);
+    if (rekapData.length === 0) {
+      alert("Tidak ada data untuk diekspor");
+      return;
+    }
+
+    const excelData = rekapData.map(user => {
+      const row = {
+        "Nama": user.name,
+        "NIM": user.nim,
+        "Kementerian": user.kementerian
+      };
+      rekapDates.forEach(dateObj => {
+        const dateKey = fmt(dateObj);
+        row[dateKey] = user.attendance[dateKey] || "-";
+      });
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap Absensi");
+    XLSX.writeFile(workbook, `Rekap_Absen_${rekapDateStart}_to_${rekapDateEnd}.xlsx`);
+    
+    setExportMsg(`✓ File Excel berhasil diekspor.`);
     setTimeout(() => setExportMsg(""), 4000);
   };
 
@@ -92,7 +154,7 @@ export default function Absensi() {
         <div className="bg-white border-b border-gray-200 px-6 flex gap-8">
             <button 
                 onClick={() => setActiveView("validasi")}
-                className={`py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${activeView === 'validasi' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                className={`py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${activeView === 'validasi' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
             >
                 <ClipboardCheck size={16} /> Validasi Harian
             </button>
@@ -106,7 +168,6 @@ export default function Absensi() {
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           
-          {/* STAT CARDS (Hanya Muncul di Tab Validasi) */}
           {activeView === "validasi" && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in duration-300">
                 <StatCard label="Total Absen Harian" value={attendanceData.length} />
@@ -129,13 +190,15 @@ export default function Absensi() {
             <div className="p-4 bg-gray-50/50 flex flex-wrap gap-6 items-end border-b border-gray-100">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kementerian</label>
-                <select className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-green-500" value={filterKem} onChange={(e) => setFilterKem(e.target.value)}>
+                <select 
+                  className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-green-500" 
+                  value={filterKem} 
+                  onChange={(e) => setFilterKem(e.target.value)}
+                >
                   <option value="all">Semua Kementerian</option>
-                  <option value="Kementerian Keuangan">Kementerian Keuangan</option>
-                  <option value="Kementerian Pendidikan">Kementerian Pendidikan</option>
-                  <option value="Kementerian Kominfo">Kementerian Kominfo</option>
-                  <option value="Kementerian Sosmas">Kementerian Sosmas</option>
-                  <option value="Kementerian PSDM">Kementerian PSDM</option>
+                  {daftarKementerian.map((kem, idx) => (
+                    <option key={idx} value={kem}>{kem}</option>
+                  ))}
                 </select>
               </div>
 
@@ -145,7 +208,6 @@ export default function Absensi() {
                     <input type="date" className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-green-500" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                 </div>
               ) : (
-                // PERBAIKAN: Filter Rentang Tanggal di Tab Rekapitulasi
                 <div className="flex flex-col gap-1.5 animate-in slide-in-from-left-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rentang Rekapitulasi</label>
                     <div className="flex items-center gap-2 bg-white p-1 px-3 border border-gray-200 rounded-lg shadow-sm">
@@ -181,7 +243,7 @@ export default function Absensi() {
                             <div className="flex items-center gap-1.5 text-gray-700 font-medium text-xs">
                             <Clock className="w-3 h-3 text-gray-400" /> {new Date(row.check_in_time).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}
                             </div>
-                            <div className={`text-[10px] mt-1 ${row.distance_meters > 100 ? 'text-red-500 font-bold' : 'text-green-600'}`}>
+                            <div className={`text-[10px] mt-1 ${row.distance_meters > 1500 ? 'text-red-500 font-bold' : 'text-green-600'}`}>
                             {row.distance_meters}m dari Sekre
                             </div>
                         </td>
@@ -211,8 +273,8 @@ export default function Absensi() {
                     </tbody>
                 </table>
               ) : (
-                /* --- TAB REKAPITULASI (GRID) --- */
-                <table className="w-full text-left text-sm border-collapse animate-in fade-in duration-500">
+                /* --- TAB REKAPITULASI (GRID DATA ASLI) --- */
+                <table className="w-full text-left text-sm border-collapse animate-in fade-in duration-500 font-sans">
                     <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b">
                     <tr>
                         <th className="px-4 py-3 border-b min-w-[200px] sticky left-0 bg-gray-50 z-10">Data Anggota BEM</th>
@@ -227,19 +289,27 @@ export default function Absensi() {
                     </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                    {Array.from({length: 5}).map((_, idx) => (
-                        <tr key={idx} className="hover:bg-green-50/30 transition group">
-                        <td className="px-4 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-green-50/30 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                            <div className="font-bold text-gray-800">Nama Anggota #{idx + 1}</div>
-                            <div className="text-[10px] text-gray-400">231152700{idx} • Kementerian PSDM</div>
-                        </td>
-                        {rekapDates.map((d, i) => (
-                            <td key={i} className="px-2 py-3 border-l border-gray-50 text-center">
-                                <div className="w-6 h-6 rounded bg-gray-100 mx-auto opacity-30"></div>
-                            </td>
-                        ))}
+                    {rekapData.length > 0 ? (
+                      rekapData.map((user) => (
+                        <tr key={user.id} className="hover:bg-green-50/30 transition group">
+                          <td className="px-4 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-green-50/30 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                              <div className="font-bold text-gray-800 text-xs">{user.name}</div>
+                              <div className="text-[10px] text-gray-400 uppercase font-medium">{user.nim} • {user.kementerian}</div>
+                          </td>
+                          {rekapDates.map((dateObj, i) => {
+                              const dateKey = fmt(dateObj);
+                              const status = user.attendance ? user.attendance[dateKey] : null;
+                              return (
+                                <td key={i} className="px-2 py-3 border-l border-gray-50 text-center">
+                                    <AttGridDot status={status} />
+                                </td>
+                              );
+                          })}
                         </tr>
-                    ))}
+                      ))
+                    ) : (
+                      <tr><td colSpan={rekapDates.length + 1} className="px-6 py-20 text-center text-gray-400 italic">Tidak ada data anggota ditemukan.</td></tr>
+                    )}
                     </tbody>
                 </table>
               )}
@@ -247,26 +317,32 @@ export default function Absensi() {
 
             {activeView === "rekap" && (
                 <div className="p-6 border-t flex flex-wrap gap-6 items-center bg-gray-50/50">
-                    <LegendItem label="Hadir (Tervalidasi)" status="H" />
-                    <LegendItem label="Ditolak/Alpa" status="A" />
-                    <LegendItem label="Belum Absen" status="x" />
+                    <LegendItem label="Hadir (Tervalidasi)" status="hadir" />
+                    <LegendItem label="Ditolak" status="rejected" />
+                    <LegendItem label="Proses" status="pending" />
+                    <LegendItem label="Belum Absen" status={null} />
                 </div>
             )}
           </div>
 
-          {/* PERBAIKAN: Export Section Hanya Muncul di Tab Rekapitulasi */}
+          {/* EXPORT SECTION - HANYA DI REKAPITULASI */}
           {activeView === "rekap" && (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 animate-in slide-in-from-bottom-2">
               <h3 className="font-bold text-gray-700 flex items-center gap-2 mb-5 text-sm uppercase tracking-tight">
-                 <DownloadIcon /> Export Data Kehadiran (Excel)
+                 <FileSpreadsheet className="w-4 h-4 text-green-600" /> Export Data Kehadiran (Excel)
               </h3>
               <div className="flex flex-wrap gap-6 items-end">
                 <div className="flex flex-col gap-1.5 min-w-[180px]">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter Kementerian</label>
-                  <select className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 shadow-sm" value={filterKem} onChange={(e) => setFilterKem(e.target.value)}>
+                  <select 
+                    className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 shadow-sm"
+                    value={filterKem}
+                    onChange={(e) => setFilterKem(e.target.value)}
+                  >
                     <option value="all">Semua Kementerian</option>
-                    <option value="Kementerian Keuangan">Kementerian Keuangan</option>
-                    <option value="Kementerian Pendidikan">Kementerian Pendidikan</option>
+                    {daftarKementerian.map((kem, idx) => (
+                      <option key={idx} value={kem}>{kem}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -329,12 +405,23 @@ function StatusBadge({ status }) {
 }
 
 function LegendItem({ label, status }) {
-    const styles = { H: "bg-green-500", A: "bg-red-500", x: "bg-gray-200" };
+    const styles = { hadir: "bg-green-500", rejected: "bg-red-500", pending: "bg-amber-400" };
     return (
       <div className="flex items-center gap-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
-        <div className={`w-4 h-4 rounded ${styles[status]}`}></div> <span>{label}</span>
+        <div className={`w-4 h-4 rounded ${status ? styles[status] : "bg-gray-200 border border-dashed border-gray-400"}`}></div> <span>{label}</span>
       </div>
     );
+}
+
+function AttGridDot({ status }) {
+  const styles = {
+    hadir: "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]",
+    rejected: "bg-red-500",
+    pending: "bg-amber-400 animate-pulse",
+    tidak_hadir: "bg-red-200",
+  };
+  if (!status) return <div className="w-5 h-5 rounded-md bg-gray-100 mx-auto border border-gray-200 border-dashed" title="Belum Absen"></div>;
+  return <div className={`w-5 h-5 rounded-md mx-auto transition-transform hover:scale-125 cursor-help ${styles[status]}`} title={status.toUpperCase()}></div>;
 }
 
 const CalendarIcon = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>;

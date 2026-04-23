@@ -8,6 +8,8 @@ import Absensi from "./pages/admin/Absensi";
 import ManajemenKegiatan from "./pages/admin/Kegiatan"; // 1. IMPORT DISINI
 import Home from "./pages/user/Home";
 import RiwayatAbsensi from "./pages/user/RiwayatAbsensi";
+import Akun from "./pages/admin/Akun";
+import Piket from "./pages/admin/Piket";
 
 function RiwayatAbsensiPage() {
   const navigate = useNavigate();
@@ -54,6 +56,10 @@ function App() {
             </ProtectedRoute>
           } />
 
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/absensi" element={<Absensi />} />
+          <Route path="/akun" element={<Akun />} />
+          <Route path="/piket" element={<Piket />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>
