@@ -4,7 +4,7 @@ import API from "../../config/api";
 
 const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
-const RADIUS_METER = 100;
+const RADIUS_METER = 2000;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -24,6 +24,9 @@ function formatJarak(m) {
 export default function Home() {
   const navigate = useNavigate();
 
+  // ── FIX: user sekarang punya jabatan/kementerian/role dari user_periods
+  // Field ini di-set saat login dari endpoint /auth/login yang sudah
+  // melakukan JOIN ke user_periods WHERE is_active = TRUE
   const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
   const user   = stored ? JSON.parse(stored) : null;
 
@@ -45,7 +48,6 @@ export default function Home() {
   const [photoModal, setPhotoModal]                   = useState(null);
   const [radiusError, setRadiusError]                 = useState(null);
 
-  // ── FIX: loadingFor melacak tombol mana yang sedang loading ──────────────
   // null = tidak ada, "sekre" = tombol sekre, number = activity_id kegiatan
   const [loadingFor, setLoadingFor] = useState(null);
 
@@ -62,8 +64,8 @@ export default function Home() {
     const now  = new Date();
     const hari = now.getDay();
     const totalMenit = now.getHours() * 60 + now.getMinutes();
-    if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi hanya Senin – Jumat" };
-    if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
+    if (hari === 0 || hari === 7) return { bisa: false, pesan: "Absensi hanya Senin – Jumat" };
+    if (totalMenit < 3 * 60)     return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
     if (totalMenit > 18 * 60)    return { bisa: false, pesan: "Absensi ditutup pukul 18:00" };
     return { bisa: true, pesan: null };
   };
@@ -135,12 +137,10 @@ export default function Home() {
 
       setHomeData(homeJson);
 
-      // Kegiatan dari endpoint history (sudah selesai atau sudah diabsen)
       const kegHist = Array.isArray(kegHistAll)
         ? kegHistAll.filter(i => i.status === "hadir")
         : [];
 
-      // ── FIX: gunakan att_selfie_photo dari backend ────────────────────
       const kegOngoing = (homeJson?.activities || [])
         .filter(act => act.att_status === "hadir")
         .map(act => ({
@@ -167,7 +167,6 @@ export default function Home() {
         _sortTime: i.check_in_time,
       }));
 
-      // Deduplikasi berdasarkan activity_id, prioritaskan kegOngoing
       const seenActivityIds = new Set();
       const allKegiatan = [...kegOngoing, ...kegTagged].filter(i => {
         if (seenActivityIds.has(i.activity_id)) return false;
@@ -245,7 +244,6 @@ export default function Home() {
       );
     });
 
-  // ── FIX: gunakan loadingFor untuk melacak tombol mana yang loading ────────
   const handleAmbilAbsensi = async (type, activity_id = null) => {
     const key = type === "sekre" ? "sekre" : activity_id;
     setLoadingFor(key);
@@ -284,9 +282,25 @@ export default function Home() {
       const url  = currentAction.type === "sekre"
         ? `${API}/attendance/secretariat/checkin`
         : `${API}/attendance/activity/checkin`;
+
+      // ── FIX: tidak perlu kirim period_id dari frontend,
+      // backend akan ambil sendiri dari tabel periods WHERE is_active = TRUE
       const body = currentAction.type === "sekre"
-        ? { user_id: user.id, latitude: location.latitude, longitude: location.longitude, location_name: locationName || "Sekre BEM", selfie_photo: capturedPhoto }
-        : { activity_id: currentAction.activity_id, user_id: user.id, latitude: location.latitude, longitude: location.longitude, location_name: locationName || "Lokasi Kegiatan", selfie_photo: capturedPhoto };
+        ? {
+            user_id:       user.id,
+            latitude:      location.latitude,
+            longitude:     location.longitude,
+            location_name: locationName || "Sekre BEM",
+            selfie_photo:  capturedPhoto,
+          }
+        : {
+            activity_id:   currentAction.activity_id,
+            user_id:       user.id,
+            latitude:      location.latitude,
+            longitude:     location.longitude,
+            location_name: locationName || "Lokasi Kegiatan",
+            selfie_photo:  capturedPhoto,
+          };
 
       const res  = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
@@ -318,6 +332,17 @@ export default function Home() {
   };
 
   const sudahAbsenSekre = homeData?.secretariat_attendance !== null;
+
+  // ── FIX: jabatan & kementerian dibaca dari user_periods melalui user object
+  // yang di-set saat login. Pastikan endpoint /auth/login JOIN ke user_periods
+  // dengan query seperti:
+  //   SELECT u.*, up.jabatan, up.kementerian, up.role
+  //   FROM users u
+  //   JOIN user_periods up ON up.user_id = u.id
+  //   JOIN periods p ON p.id = up.period_id AND p.is_active = TRUE
+  //   WHERE up.is_active = TRUE AND u.username = ?
+  const jabatan    = user?.jabatan    || "-";
+  const kementerian = user?.kementerian || null;
 
   const IconCheck = () => (
     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -482,7 +507,10 @@ export default function Home() {
             <p className="text-green-200 text-xs mb-1">Selamat Datang</p>
             <h1 className="text-white font-bold text-lg leading-tight">{user?.name?.toUpperCase()}</h1>
             <p className="text-green-100 text-xs mt-0.5">{user?.nim}</p>
-            <p className="text-green-100 text-xs font-medium mt-1">{user?.jabatan} {user?.kementerian ? `— ${user.kementerian}` : ""}</p>
+            {/* ── FIX: jabatan & kementerian dari user_periods ── */}
+            <p className="text-green-100 text-xs font-medium mt-1">
+              {jabatan}{kementerian ? ` — ${kementerian}` : ""}
+            </p>
             <div className="flex flex-col gap-1 mt-3">
               <div className="flex items-start gap-1.5 text-green-100 text-xs">
                 <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -536,7 +564,10 @@ export default function Home() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Piket Hari Ini!</p>
-                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">{user?.kementerian} mendapat jadwal piket sekretariat hari ini.</p>
+                  {/* ── FIX: kementerian dari user_periods ── */}
+                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                    {kementerian || "Kementerian Anda"} mendapat jadwal piket sekretariat hari ini.
+                  </p>
                 </div>
               </div>
             )}
@@ -595,7 +626,6 @@ export default function Home() {
                 <div className="flex items-center gap-2 text-red-400 text-sm mb-3"><IconWarning /><span>Anda belum absen hari ini</span></div>
               )}
 
-              {/* ── FIX: tombol sekre hanya loading saat loadingFor === "sekre" ── */}
               <button
                 onClick={() => handleAmbilAbsensi("sekre")}
                 disabled={sudahAbsenSekre || loadingFor !== null || !waktu.bisa}
@@ -650,7 +680,6 @@ export default function Home() {
                             <IconCheck /><span>Sudah absen · {formatTime(act.att_check_in)}</span>
                           </div>
                         )}
-                        {/* ── FIX: tombol kegiatan hanya loading saat isLoadingThis ── */}
                         <button
                           onClick={() => handleAmbilAbsensi("kegiatan", act.id)}
                           disabled={sudahAbsen || loadingFor !== null || !bisaAbsen}

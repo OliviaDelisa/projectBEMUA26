@@ -2,8 +2,7 @@ const db = require("../db/db");
 
 const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
-
-const RADIUS_METER = 100;
+const RADIUS_METER = 2000;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R     = 6371000;
@@ -28,7 +27,6 @@ exports.getHomeData = (req, res) => {
     (err, secAtt) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
-      // ── FIX: tambah aa.selfie_photo as att_selfie_photo ──────────
       db.query(
         `SELECT a.*,
                 aa.status        AS att_status,
@@ -44,10 +42,16 @@ exports.getHomeData = (req, res) => {
         (err, activities) => {
           if (err) return res.status(500).json({ message: "Server error" });
 
+          // ── FIX: duty_schedules join melalui user_periods (bukan users.kementerian) ──
+          // user_periods menyimpan kementerian untuk periode aktif
           db.query(
-            `SELECT ds.* FROM duty_schedules ds
-             JOIN users u ON u.kementerian = ds.kementerian
-             WHERE u.id = ? AND ds.duty_date = ?`,
+            `SELECT ds.*
+             FROM duty_schedules ds
+             JOIN user_periods up ON up.kementerian = ds.kementerian
+             JOIN periods p ON p.id = up.period_id AND p.is_active = TRUE
+             WHERE up.user_id = ?
+               AND up.is_active = TRUE
+               AND ds.duty_date = ?`,
             [user_id, today],
             (err, duty) => {
               if (err) return res.status(500).json({ message: "Server error" });
@@ -74,7 +78,7 @@ exports.getSecretariatHistory = (req, res) => {
   db.query(
     `SELECT * FROM secretariat_attendance
      WHERE user_id = ? ORDER BY date DESC LIMIT ?`,
-    [user_id, parseInt(limit)],
+    [parseInt(user_id), parseInt(limit)],
     (err, result) => {
       if (err) return res.status(500).json({ message: "Server error" });
       res.json(result);
@@ -84,8 +88,6 @@ exports.getSecretariatHistory = (req, res) => {
 
 // ── getActivityHistory ───────────────────────────────────────────
 // GET /attendance/activity/history/:user_id?limit=20
-// GET /attendance/activity/history/:user_id?limit=100
-// FIX: include kegiatan ongoing yang sudah diabsen (aa.status = 'hadir')
 exports.getActivityHistory = (req, res) => {
   const { user_id } = req.params;
   const limit = req.query.limit || 100;
@@ -127,18 +129,16 @@ exports.getActivityHistory = (req, res) => {
 // ── checkInSecretariat ───────────────────────────────────────────
 // POST /attendance/secretariat/checkin
 exports.checkInSecretariat = (req, res) => {
-  const { user_id, latitude, longitude, location_name, selfie_photo, period_id } = req.body;
+  const { user_id, latitude, longitude, location_name, selfie_photo } = req.body;
   const now = new Date();
 
-  // Validasi hari kerja (ubah hari === 7 ke hari === 6 setelah testing selesai)
   const hari = now.getDay();
   if (hari === 0 || hari === 7) {
     return res.status(400).json({ message: "Absensi hanya tersedia hari Senin – Jumat" });
   }
 
-  // Validasi jam
   const totalMenit = now.getHours() * 60 + now.getMinutes();
-  if (totalMenit < 8 * 60) {
+  if (totalMenit < 3 * 60) {
     return res.status(400).json({ message: "Absensi belum dibuka. Mulai pukul 08:00" });
   }
   if (totalMenit > 18 * 60) {
@@ -163,24 +163,34 @@ exports.checkInSecretariat = (req, res) => {
 
   const today = now.toISOString().split("T")[0];
 
+  // ── FIX: ambil period_id aktif dari tabel periods (bukan dari body) ──
   db.query(
-    `INSERT INTO secretariat_attendance
-      (user_id, period_id, date, check_in_time, latitude, longitude, location_name, selfie_photo, distance_meters, status)
-     VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, 'hadir')`,
-    [user_id, period_id || null, today, latitude, longitude, location_name, selfie_photo || null, jarak],
-    (err, result) => {
-      if (err) {
-        if (err.code === "ER_DUP_ENTRY") {
-          return res.status(409).json({ message: "Anda sudah absen hari ini" });
+    `SELECT id FROM periods WHERE is_active = TRUE LIMIT 1`,
+    [],
+    (err, periods) => {
+      if (err) return res.status(500).json({ message: "Server error" });
+      const period_id = periods[0]?.id || null;
+
+      db.query(
+        `INSERT INTO secretariat_attendance
+          (user_id, period_id, date, check_in_time, latitude, longitude, location_name, selfie_photo, distance_meters, status)
+         VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, 'hadir')`,
+        [user_id, period_id, today, latitude, longitude, location_name, selfie_photo || null, jarak],
+        (err, result) => {
+          if (err) {
+            if (err.code === "ER_DUP_ENTRY") {
+              return res.status(409).json({ message: "Anda sudah absen hari ini" });
+            }
+            return res.status(500).json({ message: "Gagal absen", error: err });
+          }
+          res.status(201).json({
+            message: "Absen berhasil",
+            status: "hadir",
+            id: result.insertId,
+            distance_meters: jarak,
+          });
         }
-        return res.status(500).json({ message: "Gagal absen", error: err });
-      }
-      res.status(201).json({
-        message: "Absen berhasil",
-        status: "hadir",
-        id: result.insertId,
-        distance_meters: jarak,
-      });
+      );
     }
   );
 };
