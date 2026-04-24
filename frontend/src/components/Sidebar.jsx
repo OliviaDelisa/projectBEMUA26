@@ -9,8 +9,8 @@ const menus = [
     children: [
       { label: "Dashboard", path: "/dashboard" },
       { label: "Manajemen Absensi", path: "/absensi" }, 
-      { label: "Manajemen Kegiatan", path: "/kegiatan" },
-      { label: "Piket", path: "/dashboard/piket" }
+      { label: "Absensi Kegiatan", path: "/kegiatan" },
+      { label: "Piket", path: "/piket" }
     ],
   },
   {
