@@ -116,33 +116,84 @@ export default function Absensi() {
   };
 
   // FUNGSI EXPORT KE EXCEL
-  const handleExport = () => {
-    if (rekapData.length === 0) {
-      alert("Tidak ada data untuk diekspor");
-      return;
-    }
+  // Ganti fungsi handleExport yang lama dengan ini
+const handleExport = () => {
+  if (rekapData.length === 0) {
+    alert("Tidak ada data untuk diekspor");
+    return;
+  }
 
-    const excelData = rekapData.map(user => {
-      const row = {
-        "Nama": user.name,
-        "NIM": user.nim,
-        "Kementerian": user.kementerian
-      };
-      rekapDates.forEach(dateObj => {
-        const dateKey = fmt(dateObj);
-        row[dateKey] = user.attendance[dateKey] || "-";
-      });
-      return row;
+  // ── Baris data utama ──────────────────────────────────────────────────────
+  const excelData = rekapData.map(user => {
+    const row = {
+      "Nama"        : user.name,
+      "NIM"         : user.nim,
+      "Kementerian" : user.kementerian,
+    };
+
+    // Kolom tanggal — dinamis sesuai rekapDates (bisa harian, bulanan, tahunan)
+    rekapDates.forEach(dateObj => {
+      const dateKey = fmt(dateObj);
+      const status  = user.attendance?.[dateKey];
+
+      // Tampilkan label yang lebih manusiawi di Excel
+      row[dateKey] = status === 'hadir'      ? 'H'
+                   : status === 'rejected'   ? 'X'
+                   : status === 'pending'    ? '?'
+                   : status === 'tidak_hadir'? '-'
+                   : '';
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap Absensi");
-    XLSX.writeFile(workbook, `Rekap_Absen_${rekapDateStart}_to_${rekapDateEnd}.xlsx`);
-    
-    setExportMsg(`✓ File Excel berhasil diekspor.`);
-    setTimeout(() => setExportMsg(""), 4000);
+    // ── Kolom Total Hadir di paling kanan ───────────────────────────────────
+    const totalHadir = Object.values(user.attendance || {}).filter(
+      s => s === 'hadir'
+    ).length;
+    row["Total Hadir"] = totalHadir;
+
+    return row;
+  });
+
+  // ── Baris ringkasan di bawah tabel ───────────────────────────────────────
+  // Menghitung jumlah hadir per tanggal (kolom) untuk baris TOTAL
+  const summaryRow = {
+    "Nama"        : "TOTAL HADIR / HARI",
+    "NIM"         : "",
+    "Kementerian" : "",
   };
+  rekapDates.forEach(dateObj => {
+    const dateKey = fmt(dateObj);
+    const jumlahHadir = rekapData.filter(
+      user => user.attendance?.[dateKey] === 'hadir'
+    ).length;
+    summaryRow[dateKey] = jumlahHadir;
+  });
+  summaryRow["Total Hadir"] = ""; // kolom total tidak relevan untuk baris summary
+
+  excelData.push(summaryRow); // tambahkan baris ringkasan di bawah
+
+  // ── Generate worksheet & workbook ─────────────────────────────────────────
+  const worksheet  = XLSX.utils.json_to_sheet(excelData);
+  const workbook   = XLSX.utils.book_new();
+
+  // ── Styling lebar kolom agar tidak terpotong ──────────────────────────────
+  const colWidths = [
+    { wch: 28 }, // Nama
+    { wch: 16 }, // NIM
+    { wch: 30 }, // Kementerian
+    ...rekapDates.map(() => ({ wch: 12 })), // kolom tanggal
+    { wch: 14 }, // Total Hadir
+  ];
+  worksheet['!cols'] = colWidths;
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap Absensi");
+
+  // ── Nama file menyertakan periode export ──────────────────────────────────
+  const filename = `Rekap_Absen_${rekapDateStart}_sd_${rekapDateEnd}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+
+  setExportMsg(`✓ File "${filename}" berhasil diekspor.`);
+  setTimeout(() => setExportMsg(""), 5000);
+};
 
   return (
     <div className="flex h-screen bg-[#f5f5f0] overflow-hidden text-gray-800 font-sans">
@@ -160,7 +211,7 @@ export default function Absensi() {
             </button>
             <button 
                 onClick={() => setActiveView("rekap")}
-                className={`py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${activeView === 'rekap' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                className={`py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${activeView === 'rekap' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
             >
                 <LayoutGrid size={16} /> Rekapitulasi Periode
             </button>
@@ -186,7 +237,6 @@ export default function Absensi() {
               {loading && <span className="text-[10px] animate-pulse text-green-600 font-bold uppercase">Memperbarui...</span>}
             </div>
 
-            {/* Filter Bar */}
             <div className="p-4 bg-gray-50/50 flex flex-wrap gap-6 items-end border-b border-gray-100">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kementerian</label>
@@ -225,9 +275,9 @@ export default function Absensi() {
                 <table className="w-full text-left text-sm border-collapse animate-in fade-in duration-500">
                     <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b">
                     <tr>
-                        <th className="px-6 py-4">Data Anggota</th>
+                        <th className="px-6 py-4">Data Staf</th>
                         <th className="px-6 py-4">Waktu & Lokasi</th>
-                        <th className="px-6 py-4">Bukti Foto</th>
+                        <th className="px-6 py-4">Foto Absensi</th>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4 text-center">Validasi</th>
                     </tr>
@@ -277,7 +327,7 @@ export default function Absensi() {
                 <table className="w-full text-left text-sm border-collapse animate-in fade-in duration-500 font-sans">
                     <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b">
                     <tr>
-                        <th className="px-4 py-3 border-b min-w-[200px] sticky left-0 bg-gray-50 z-10">Data Anggota BEM</th>
+                        <th className="px-4 py-3 border-b min-w-[200px] sticky left-0 bg-gray-50 z-10">Data Staf</th>
                         {rekapDates.map((d, i) => (
                         <th key={i} className="px-2 py-2 border-b text-center border-l border-gray-100 min-w-[70px]">
                             <div className="flex flex-col">
@@ -286,29 +336,45 @@ export default function Absensi() {
                             </div>
                         </th>
                         ))}
+                        {/* HEADER TOTAL */}
+                        <th className="px-4 py-3 border-b text-center border-l border-gray-200 bg-green-50/50 text-green-700 sticky right-0 z-10 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                          Total Hadir
+                        </th>
                     </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                     {rekapData.length > 0 ? (
-                      rekapData.map((user) => (
-                        <tr key={user.id} className="hover:bg-green-50/30 transition group">
-                          <td className="px-4 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-green-50/30 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                              <div className="font-bold text-gray-800 text-xs">{user.name}</div>
-                              <div className="text-[10px] text-gray-400 uppercase font-medium">{user.nim} • {user.kementerian}</div>
-                          </td>
-                          {rekapDates.map((dateObj, i) => {
-                              const dateKey = fmt(dateObj);
-                              const status = user.attendance ? user.attendance[dateKey] : null;
-                              return (
-                                <td key={i} className="px-2 py-3 border-l border-gray-50 text-center">
-                                    <AttGridDot status={status} />
-                                </td>
-                              );
-                          })}
-                        </tr>
-                      ))
+                      rekapData.map((user) => {
+                        // Kalkulasi Total Hadir dalam rentang yang dipilih
+                        const totalHadir = Object.values(user.attendance || {}).filter(s => s === 'hadir').length;
+
+                        return (
+                          <tr key={user.id} className="hover:bg-green-50/30 transition group">
+                            <td className="px-4 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-green-50/30 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                <div className="font-bold text-gray-800 text-xs">{user.name}</div>
+                                <div className="text-[10px] text-gray-400 uppercase font-medium">{user.nim} • {user.kementerian}</div>
+                            </td>
+                            {rekapDates.map((dateObj, i) => {
+                                const dateKey = fmt(dateObj);
+                                const status = user.attendance ? user.attendance[dateKey] : null;
+                                return (
+                                  <td key={i} className="px-2 py-3 border-l border-gray-50 text-center">
+                                      <AttGridDot status={status} />
+                                  </td>
+                                );
+                            })}
+                            {/* KOLOM TOTAL HADIR */}
+                            <td className="px-2 py-3 border-l border-gray-200 text-center sticky right-0 bg-white group-hover:bg-green-50 transition-colors font-bold text-green-700 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                              <div className="flex flex-col items-center">
+                                <span className="text-sm">{totalHadir}</span>
+                                <span className="text-[8px] text-gray-400 uppercase tracking-tighter">Hari</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
-                      <tr><td colSpan={rekapDates.length + 1} className="px-6 py-20 text-center text-gray-400 italic">Tidak ada data anggota ditemukan.</td></tr>
+                      <tr><td colSpan={rekapDates.length + 2} className="px-6 py-20 text-center text-gray-400 italic">Tidak ada data anggota ditemukan.</td></tr>
                     )}
                     </tbody>
                 </table>
@@ -319,7 +385,6 @@ export default function Absensi() {
                 <div className="p-6 border-t flex flex-wrap gap-6 items-center bg-gray-50/50">
                     <LegendItem label="Hadir (Tervalidasi)" status="hadir" />
                     <LegendItem label="Ditolak" status="rejected" />
-                    <LegendItem label="Proses" status="pending" />
                     <LegendItem label="Belum Absen" status={null} />
                 </div>
             )}

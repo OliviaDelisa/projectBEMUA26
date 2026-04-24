@@ -38,7 +38,7 @@ function App() {
           } />
 
           {/* 2. TAMBAHKAN ROUTE KEGIATAN DISINI */}
-          <Route path="/dashboard/kegiatan" element={
+          <Route path="/kegiatan" element={
             <ProtectedRoute allowedRoles={["superadmin", "admin"]}>
               <ManajemenKegiatan />
             </ProtectedRoute>

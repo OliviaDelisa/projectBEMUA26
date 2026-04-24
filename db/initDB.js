@@ -82,25 +82,27 @@ connection.connect(async (err) => {
 
         // ─── TABLE: activities (kegiatan khusus) ─────────────────────────
         const createActivitiesTable = `
-          CREATE TABLE IF NOT EXISTS activities (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            title VARCHAR(200) NOT NULL,
-            description TEXT DEFAULT NULL,
-            location_name VARCHAR(255) NOT NULL,
-            latitude DECIMAL(10, 8) DEFAULT NULL,
-            longitude DECIMAL(11, 8) DEFAULT NULL,
-            radius_meters INT DEFAULT 100,
-            start_datetime DATETIME NOT NULL,
-            end_datetime DATETIME NOT NULL,
-            period_id INT DEFAULT NULL,
-            created_by INT DEFAULT NULL,
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (period_id) REFERENCES periods(id) ON DELETE SET NULL,
-            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-          )
-        `;
+  CREATE TABLE IF NOT EXISTS activities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    description TEXT DEFAULT NULL,
+    location_name VARCHAR(255) NOT NULL,
+    latitude DECIMAL(10, 8) DEFAULT NULL,
+    longitude DECIMAL(11, 8) DEFAULT NULL,
+    radius_meters INT DEFAULT 100,
+    start_datetime DATETIME NOT NULL,
+    end_datetime DATETIME NOT NULL,
+    kode_qr VARCHAR(50) UNIQUE DEFAULT NULL, -- TAMBAHKAN KOLOM INI
+    metode ENUM('qr', 'maps', 'keduanya') DEFAULT 'keduanya', -- TAMBAHKAN KOLOM INI
+    period_id INT DEFAULT NULL,
+    created_by INT DEFAULT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (period_id) REFERENCES periods(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  )
+`;
 
         // ─── TABLE: activity_attendance ──────────────────────────────────
         // Absensi kegiatan khusus

@@ -1,17 +1,157 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import Sidebar from "../../components/Sidebar"; 
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
-import { 
-  MapPin, Calendar, Users, CheckCircle, Clock, 
-  Search, Plus, X, ChevronRight, LayoutGrid, 
-  LogOut, QrCode, Globe, Download, Printer, Info
-} from "lucide-react";
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from "react-leaflet";
-import { QRCodeSVG } from "qrcode.react";
+import API from "../../config/api";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import * as XLSX from "xlsx";
 
-// Fix Leaflet Icon Issue
+// ─── GLOBAL STYLES ───────────────────────────────────────────────────────────
+const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --g900:#14532d;--g800:#166534;--g700:#15803d;--g600:#16a34a;
+  --g500:#22c55e;--g400:#4ade80;--g200:#bbf7d0;--g100:#dcfce7;--g50:#f0fdf4;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
+  --bg:#f4f4ef;--white:#ffffff;--border:#e5e7eb;--text:#111827;--muted:#6b7280;
+  --radius:12px;--shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+}
+
+.kg-page { font-family:var(--font); background:var(--bg); color:var(--text); font-size:14px; min-height:100vh; display: flex; }
+.kg-main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+.kg-topbar { background:var(--white); border-bottom:1px solid var(--border); padding:16px 28px; display:flex; align-items:center; justify-content:space-between; }
+.kg-topbar-title { font-size:20px; font-weight:700; color:var(--g800); }
+.kg-topbar-sub { font-size:12px; color:var(--muted); font-style:italic; }
+
+.kg-btn-primary { height:36px; padding:0 16px; background:var(--g600); color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:background .15s; }
+.kg-btn-primary:hover { background:var(--g700); }
+.kg-btn-primary:disabled { background:#9ca3af; cursor:not-allowed; opacity: 0.7; }
+.kg-btn-outline { height:34px; padding:0 14px; background:transparent; color:var(--text); border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.kg-btn-danger { height:34px; padding:0 14px; background:#fef2f2; color:#ef4444; border:1px solid #fecaca; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.kg-btn-edit { height:34px; padding:0 10px; background:#f0fdf4; color:var(--g700); border:1px solid var(--g200); border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+
+.kg-page-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--white); padding:0 28px; }
+.kg-page-tab { padding:12px 16px; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; transition:all .15s; }
+.kg-page-tab.active { color:var(--g700); border-bottom:2px solid var(--g600); font-weight:600; }
+
+.kg-content { padding:24px 28px; display:flex; flex-direction:column; gap:24px; overflow-y: auto; }
+
+.kg-stats-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+.kg-stat-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); box-shadow:var(--shadow); padding:18px; position:relative; overflow:hidden; }
+.kg-stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--g500); }
+.kg-stat-card.blue::before { background:#3b82f6; }
+.kg-stat-card.amber::before { background:#f59e0b; }
+.kg-stat-card.rose::before { background:#f43f5e; }
+.kg-stat-label { font-size:11px; font-weight:600; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+.kg-stat-value { font-size:28px; font-weight:700; font-family:var(--mono); color:var(--text); }
+.kg-stat-sub { font-size:11px; color:var(--muted); margin-top:4px; }
+
+.kg-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); box-shadow:var(--shadow); }
+.kg-card-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.kg-card-title { font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; color: var(--text); }
+
+.kg-kegiatan-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; }
+.kg-k-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--border); box-shadow:var(--shadow); display:flex; flex-direction:column; height: 100%; transition: transform 0.2s; }
+.kg-k-card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.kg-k-card-top { padding:20px; flex-grow: 1; }
+.kg-k-name { font-size:15px; font-weight:700; color:var(--text); margin-bottom:12px; }
+.kg-k-meta { display:flex; flex-direction:column; gap:8px; }
+.kg-k-meta-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); font-weight:500; }
+.kg-k-card-footer { padding:16px 20px; border-top:1px solid #f3f4f6; background:#fafafa; display:flex; gap:8px; }
+
+.kg-detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:4000; display:flex; justify-content:flex-end; }
+.kg-detail-panel { width:740px; max-width:100vw; background:var(--white); height: 100%; display:flex; flex-direction:column; box-shadow: -10px 0 30px rgba(0,0,0,0.1); animation: slideIn 0.3s ease-out; }
+
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+.kg-abs-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.kg-abs-stat-box { padding: 16px; border-radius: 16px; text-align: center; border: 1px solid var(--border); }
+
+/* ── Tabel absensi drawer ── */
+.kg-abs-table { width: 100%; border-collapse: collapse; }
+.kg-abs-table th { padding: 10px 14px; background: #f9fafb; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.kg-abs-table td { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; font-size: 13px; vertical-align: middle; }
+.kg-abs-table tr:last-child td { border-bottom: none; }
+
+/* ── Foto selfie thumbnail ── */
+.kg-selfie-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.kg-selfie-thumb:hover { transform: scale(1.08); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+/* ── Rekap kementerian ── */
+.kg-kem-table { width: 100%; border-collapse: collapse; }
+.kg-kem-table th { padding: 10px 14px; background: #f9fafb; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--border); text-align: left; }
+.kg-kem-table td { padding: 11px 14px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+.kg-kem-table tr:last-child td { border-bottom: none; }
+
+/* ── Progress bar hadir ── */
+.kg-progress-wrap { display: flex; align-items: center; gap: 8px; }
+.kg-progress-bar { flex: 1; height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden; }
+.kg-progress-fill { height: 100%; background: var(--g500); border-radius: 99px; transition: width .4s; }
+
+/* MODAL */
+.kg-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:3000; display:flex; align-items:center; justify-content:center; padding:20px; }
+.kg-modal { background:var(--white); border-radius:20px; width:100%; max-width:620px; box-shadow:0 20px 60px rgba(0,0,0,.2); overflow:hidden; }
+.kg-modal-header { padding:18px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.kg-form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+.kg-form-group { display:flex; flex-direction:column; gap:6px; margin-bottom: 14px; }
+.kg-form-group.full { grid-column: 1 / -1; }
+.kg-form-label { font-size:12px; font-weight:700; color:var(--text); text-transform: uppercase; letter-spacing: 0.02em; }
+.kg-form-input { height:40px; padding:0 12px; border:1px solid var(--border); border-radius:8px; font-family:var(--font); font-size:14px; transition: border-color .15s, box-shadow .15s; }
+.kg-form-input:focus { outline: none; border-color: var(--g400); box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
+.kg-form-input.error { border-color: #ef4444; }
+.kg-form-input.error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+
+.kg-char-counter { font-size: 11px; color: var(--muted); text-align: right; }
+.kg-char-counter.warn { color: #f59e0b; font-weight: 600; }
+.kg-char-counter.over { color: #ef4444; font-weight: 700; }
+.kg-field-error { font-size: 11px; color: #ef4444; font-weight: 600; }
+
+.kg-stepper { display: flex; align-items: center; padding: 16px 24px; background: #fafafa; border-bottom: 1px solid var(--border); gap: 0; }
+.kg-step-item { display: flex; align-items: center; gap: 10px; flex: 1; }
+.kg-step-circle { width: 28px; height: 28px; border-radius: 50%; background: #e5e7eb; color: var(--muted); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s; }
+.kg-step-item.active .kg-step-circle { background: var(--g600); color: white; }
+.kg-step-item span { font-size: 13px; font-weight: 600; color: var(--muted); transition: color 0.2s; }
+.kg-step-item.active span { color: var(--g700); }
+.kg-step-line { flex: 1; height: 2px; background: #e5e7eb; margin: 0 12px; border-radius: 2px; flex-shrink: 0; width: 60px; }
+
+#kg-leaflet-map { width:100%; height:220px; border-radius:12px; border:1px solid var(--border); margin-top: 10px; }
+.kg-map-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 10px 14px; background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; }
+.kg-map-coords { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.kg-radius-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text); }
+.kg-radius-input { width: 72px; height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--g700); text-align: center; background: white; }
+.kg-radius-input:focus { outline: none; border-color: var(--g400); box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
+
+.kg-geocode-wrap { position: relative; margin-bottom: 10px; }
+.kg-geocode-input-wrap { position: relative; display: flex; align-items: center; }
+.kg-geocode-input { width: 100%; height: 40px; padding: 0 40px 0 40px; border: 1px solid var(--border); border-radius: 8px; font-family: var(--font); font-size: 14px; transition: border-color .15s, box-shadow .15s; background: white; box-sizing: border-box; }
+.kg-geocode-input:focus { outline: none; border-color: var(--g400); box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
+.kg-geocode-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.kg-geocode-spinner { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; border: 2px solid var(--g200); border-top-color: var(--g600); border-radius: 50%; animation: kg-spin 0.7s linear infinite; }
+@keyframes kg-spin { to { transform: translateY(-50%) rotate(360deg); } }
+.kg-geocode-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 9999; overflow: hidden; max-height: 220px; overflow-y: auto; }
+.kg-geocode-item { padding: 11px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid #f3f4f6; transition: background 0.1s; }
+.kg-geocode-item:last-child { border-bottom: none; }
+.kg-geocode-item:hover { background: var(--g50); }
+.kg-geocode-item-name { font-weight: 600; color: var(--text); line-height: 1.3; }
+.kg-geocode-item-addr { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+.kg-reverse-toast { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(22,163,74,0.92); color: white; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 20px; white-space: nowrap; z-index: 999; pointer-events: none; animation: kg-fadeup 0.3s ease; }
+@keyframes kg-fadeup { from { opacity:0; transform: translate(-50%, 8px); } to { opacity:1; transform: translate(-50%, 0); } }
+
+/* ── Modal preview foto selfie ── */
+.kg-photo-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:6000; display:flex; align-items:center; justify-content:center; padding:20px; }
+.kg-photo-modal { position:relative; max-width:420px; width:100%; background:var(--white); border-radius:20px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.4); animation: kg-qr-pop .25s cubic-bezier(.34,1.56,.64,1); }
+.kg-photo-modal img { width:100%; display:block; }
+.kg-photo-modal-footer { padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); }
+@keyframes kg-qr-pop { from { opacity:0; transform: scale(0.88); } to { opacity:1; transform: scale(1); } }
+`;
+
+import {
+  Plus, Search, X, Calendar, MapPin, Users, LayoutGrid, Clock,
+  CheckCircle, Trash2, Eye, Download, FileSpreadsheet, Edit3, RefreshCw, Camera
+} from "lucide-react";
+
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 let DefaultIcon = L.icon({
@@ -20,649 +160,884 @@ let DefaultIcon = L.icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
-L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- DUMMY DATA ---
-const INITIAL_MEMBERS = [
-  {id: 0, name:'Ahmad Fauzi',nim:'2110001',kem:'Keuangan'},
-  {id: 1, name:'Bunga Pertiwi',nim:'2110002',kem:'Pendidikan'},
-  {id: 2, name:'Chandra Wijaya',nim:'2110003',kem:'Kominfo'},
-  {id: 3, name:'Dewi Rahmawati',nim:'2110004',kem:'Sosmas'},
-  {id: 4, name:'Eko Prasetyo',nim:'2110005',kem:'PSDM'},
-  {id: 5, name:'Fitri Handayani',nim:'2110006',kem:'Keuangan'},
-  {id: 6, name:'Galih Nugroho',nim:'2110007',kem:'Pendidikan'},
-  {id: 7, name:'Hana Salsabila',nim:'2110008',kem:'Kominfo'},
-  {id: 8, name:'Ilham Saputra',nim:'2110009',kem:'Sosmas'},
-  {id: 9, name:'Julia Maharani',nim:'2110010',kem:'PSDM'},
-];
+const toLocalDateString = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
-const INITIAL_KEGIATAN = [
-  {id:1,nama:'Aksi ke DPR RI',deskripsi:'Aksi penyampaian aspirasi mahasiswa ke DPR RI terkait UKT',lokasi:'Gedung DPR RI, Senayan, Jakarta',tanggal:'25 Jun 2025',jam:'09:00–17:00',status:'mendatang',metode:'keduanya',peserta:86,hadir:0,lat:-6.2088,lng:106.8456,kode:'KEG-2025-0001'},
-  {id:2,nama:'Bakti Sosial Korban Banjir',deskripsi:'Kegiatan sosial membantu warga terdampak banjir Padang',lokasi:'Kota Padang, Sumbar',tanggal:'20–22 Jun 2025',jam:'07:00–17:00',status:'berlangsung',metode:'maps',peserta:64,hadir:52,lat:-0.9471,lng:100.4172,kode:'KEG-2025-0002'},
-  {id:4,nama:'Pelatihan Manajemen Organisasi',deskripsi:'Pelatihan internal pengelolaan organisasi BEM',lokasi:'Ruang Sidang FEB UNAND',tanggal:'15 Jun 2025',jam:'09:00–15:00',status:'selesai',metode:'keduanya',peserta:96,hadir:84,lat:-0.9201,lng:100.4580,kode:'KEG-2025-0004'},
-];
+const geocodeSearch = async (query) => {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=id`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'id' } });
+  return res.json();
+};
 
-// --- HELPER COMPONENTS ---
-function MapClickHandler({ setCoords }) {
-  useMapEvents({
-    click: (e) => setCoords(e.latlng),
+const reverseGeocode = async (lat, lng) => {
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'id' } });
+  return res.json();
+};
+
+const formatReverseResult = (data) => {
+  if (!data || !data.address) return data?.display_name || '';
+  const a = data.address;
+  return (
+    data.name ||
+    a.amenity || a.building || a.shop || a.tourism || a.leisure ||
+    [a.road, a.suburb || a.neighbourhood || a.village, a.city || a.town || a.county]
+      .filter(Boolean).join(', ')
+  );
+};
+
+// ── Helper: rekap per kementerian dari data absensi ──────────────────────────
+const buildRekapKementerian = (absensiDetail) => {
+  const map = {};
+  absensiDetail.forEach(a => {
+    const kem = a.kementerian || 'Tidak Diketahui';
+    if (!map[kem]) map[kem] = { hadir: 0, alfa: 0, total: 0 };
+    map[kem].total += 1;
+    if (a.status === 'hadir') map[kem].hadir += 1;
+    else map[kem].alfa += 1;
   });
-  return null;
-}
-
-function ChangeView({ center }) {
-  const map = useMap();
-  map.setView(center);
-  return null;
-}
+  return Object.entries(map)
+    .map(([nama, val]) => ({ nama, ...val }))
+    .sort((a, b) => a.nama.localeCompare(b.nama));
+};
 
 export default function ManajemenKegiatan() {
-  const [kegiatanList, setKegiatanList] = useState(INITIAL_KEGIATAN);
+  const [kegiatanList, setKegiatanList] = useState([]);
+  const [memberList, setMemberList] = useState([]);
   const [activeTab, setActiveTab] = useState('semua');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMetode, setFilterMetode] = useState('semua');
-  
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [showModal, setShowModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [newKegiatan, setNewKegiatan] = useState({
-    nama: '', desc: '', tglMulai: '', tglSelesai: '', jamMulai: '09:00', jamSelesai: '17:00',
-    lokasi: '', radius: 100, lat: -0.9471, lng: 100.4172, metode: 'keduanya'
+  const [isEditing, setIsEditing] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
+
+  const todayStr = toLocalDateString(new Date());
+
+  const [form, setForm] = useState({
+    nama: "", desc: "",
+    tglMulai: todayStr, tglSelesai: todayStr,
+    jamMulai: "09:00", jamSelesai: "17:00",
+    lokasi: "", radius: 100, lat: -0.9471, lng: 100.4172
   });
-  const [selectedPeserta, setSelectedPeserta] = useState(new Set(INITIAL_MEMBERS.map(m => m.id)));
 
-  // Detail State
-  const [selectedKegiatan, setSelectedKegiatan] = useState(null);
-  const [detailTab, setDetailTab] = useState('absensi');
+  const [geoQuery, setGeoQuery] = useState('');
+  const [geoResults, setGeoResults] = useState([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [reverseLoading, setReverseLoading] = useState(false);
+  const [reverseToast, setReverseToast] = useState(false);
+  const geoDebounceRef = useRef(null);
+  const geoWrapRef = useRef(null);
 
-  // Filter Logic
-  const filteredKegiatan = useMemo(() => {
-    return kegiatanList.filter(k => {
-      const matchStatus = activeTab === 'semua' || k.status === activeTab;
-      const matchSearch = k.nama.toLowerCase().includes(searchQuery.toLowerCase()) || k.lokasi.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchMetode = filterMetode === 'semua' || k.metode === filterMetode;
-      return matchStatus && matchSearch && matchMetode;
-    });
-  }, [kegiatanList, activeTab, searchQuery, filterMetode]);
+  const [detailId, setDetailId] = useState(null);
+  const [absensiDetail, setAbsensiDetail] = useState([]);
+  const [refreshingAbsensi, setRefreshingAbsensi] = useState(false);
 
-  // Handlers
-  const openModal = () => {
-    setCurrentStep(1);
-    setIsModalOpen(true);
-    // Reset form state saat buka modal baru
-    setNewKegiatan({
-      nama: '', desc: '', tglMulai: '', tglSelesai: '', jamMulai: '09:00', jamSelesai: '17:00',
-      lokasi: '', radius: 100, lat: -0.9471, lng: 100.4172, metode: 'keduanya'
-    });
+  // ── State: preview foto selfie ────────────────────────────────────────────
+  const [previewPhoto, setPreviewPhoto] = useState(null);
+
+  // ── State: tab drawer (daftar / rekap kementerian) ────────────────────────
+  const [drawerTab, setDrawerTab] = useState('daftar');
+
+  const mapRef = useRef(null);
+  const leafletInstance = useRef(null);
+  const markerRef = useRef(null);
+  const circleRef = useRef(null);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "kg-custom-style";
+    style.textContent = GLOBAL_CSS;
+    document.head.appendChild(style);
+    fetchKegiatan();
+    fetchMembers();
+    return () => document.getElementById("kg-custom-style")?.remove();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (geoWrapRef.current && !geoWrapRef.current.contains(e.target)) setGeoResults([]);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ── Auto-refresh absensi setiap 15 detik saat drawer terbuka ─────────────
+  useEffect(() => {
+    if (!detailId) return;
+    const interval = setInterval(() => fetchAttendance(detailId), 15000);
+    return () => clearInterval(interval);
+  }, [detailId]);
+
+  const fetchKegiatan = async () => {
+    try {
+      const res = await fetch(`${API}/activities`);
+      const data = await res.json();
+      setKegiatanList(data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  // Tambahan: Handler untuk Input Perubahan
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewKegiatan(prev => ({ ...prev, [name]: value }));
+  const fetchMembers = async () => {
+    try {
+      const res = await fetch(`${API}/users`);
+      const data = await res.json();
+      setMemberList(data.filter(u => u.role === 'user'));
+    } catch (err) { console.error(err); }
   };
 
-  const handleNextStep = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-      // Trigger resize peta jika masuk ke langkah 2
-      if (currentStep + 1 === 2) {
-        setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 200);
-      }
-    } else {
-      // LOGIKA FINAL (SIMPAN KEGIATAN)
-      const kegiatanBaru = {
-        ...newKegiatan,
-        id: Date.now(),
-        status: 'mendatang',
-        hadir: 0,
-        peserta: selectedPeserta.size,
-        tanggal: newKegiatan.tglMulai, // Sederhanakan untuk tampilan grid
-        jam: `${newKegiatan.jamMulai} - ${newKegiatan.jamSelesai}`,
-        kode: `KEG-2026-${String(kegiatanList.length + 1).padStart(4, '0')}`
-      };
+  const fetchAttendance = async (id) => {
+    try {
+      const res = await fetch(`${API}/activities/${id}/attendance`);
+      const data = await res.json();
+      setAbsensiDetail(data);
+    } catch (err) { console.error(err); }
+  };
 
-      setKegiatanList([kegiatanBaru, ...kegiatanList]);
-      alert(`Kegiatan "${newKegiatan.nama}" Berhasil Dibuat!`);
-      setIsModalOpen(false);
+  const handleRefreshAbsensi = async () => {
+    if (!detailId || refreshingAbsensi) return;
+    setRefreshingAbsensi(true);
+    try {
+      const res = await fetch(`${API}/activities/${detailId}/attendance`);
+      const data = await res.json();
+      setAbsensiDetail(data);
+    } catch (err) { console.error(err); }
+    finally { setRefreshingAbsensi(false); }
+  };
+
+  // ── Export Excel absensi kegiatan ─────────────────────────────────────────
+  const handleExportExcel = () => {
+    if (!activeKegiatan || absensiDetail.length === 0) {
+      alert("Belum ada data absensi untuk diekspor.");
+      return;
     }
+
+    // Sheet 1: Daftar individual
+    const dataIndividu = absensiDetail.map((a, idx) => ({
+      "No"          : idx + 1,
+      "Nama"        : a.name,
+      "Kementerian" : a.kementerian || '-',
+      "Status"      : a.status === 'hadir' ? 'Hadir' : 'Alfa',
+      "Waktu Absen" : a.check_in_time
+                        ? new Date(a.check_in_time).toLocaleString('id-ID')
+                        : '-',
+    }));
+
+    // Baris total di bawah sheet 1
+    const totalHadir = absensiDetail.filter(a => a.status === 'hadir').length;
+    const totalAlfa  = absensiDetail.filter(a => a.status !== 'hadir').length;
+    dataIndividu.push({});
+    dataIndividu.push({
+      "No": "", "Nama": "TOTAL", "Kementerian": "",
+      "Status": `Hadir: ${totalHadir} | Alfa: ${totalAlfa}`, "Waktu Absen": ""
+    });
+
+    // Sheet 2: Rekap per kementerian
+    const rekapKem = buildRekapKementerian(absensiDetail);
+    const dataRekap = rekapKem.map(r => ({
+      "Kementerian"  : r.nama,
+      "Total Staf"   : r.total,
+      "Hadir"        : r.hadir,
+      "Alfa"         : r.alfa,
+      "% Kehadiran"  : r.total > 0 ? `${Math.round((r.hadir / r.total) * 100)}%` : '0%',
+    }));
+
+    const wb = XLSX.utils.book_new();
+
+    const ws1 = XLSX.utils.json_to_sheet(dataIndividu);
+    ws1['!cols'] = [
+      { wch: 4 }, { wch: 28 }, { wch: 30 }, { wch: 10 }, { wch: 22 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws1, "Daftar Absensi");
+
+    const ws2 = XLSX.utils.json_to_sheet(dataRekap);
+    ws2['!cols'] = [
+      { wch: 32 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 14 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws2, "Rekap Kementerian");
+
+    const filename = `Absensi_${activeKegiatan.title}_${toLocalDateString(new Date())}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
+  const getStatus = (k) => {
+    const now = new Date();
+    const start = new Date(k.start_datetime);
+    const end = new Date(k.end_datetime);
+    if (now < start) return 'mendatang';
+    if (now >= start && now <= end) return 'berlangsung';
+    return 'selesai';
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus kegiatan ini?")) return;
+    try {
+      const res = await fetch(`${API}/activities/${id}`, { method: 'DELETE' });
+      if (res.ok) setKegiatanList(prev => prev.filter(k => k.id !== id));
+      else alert("Gagal menghapus kegiatan");
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditOpen = (k) => {
+    const start = new Date(k.start_datetime);
+    const end = new Date(k.end_datetime);
+    setForm({
+      nama: k.title, desc: k.description,
+      tglMulai: start.toISOString().split('T')[0],
+      tglSelesai: end.toISOString().split('T')[0],
+      jamMulai: start.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+      jamSelesai: end.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+      lokasi: k.location_name, radius: k.radius_meters,
+      lat: parseFloat(k.latitude), lng: parseFloat(k.longitude)
+    });
+    setFormErrors({});
+    setIsEditing(k.id);
+    setCurrentStep(1);
+    setShowModal(true);
+  };
+
+  const stats = useMemo(() => ({
+    total: kegiatanList.length,
+    mendatang: kegiatanList.filter(k => getStatus(k) === 'mendatang').length,
+    berlangsung: kegiatanList.filter(k => getStatus(k) === 'berlangsung').length,
+    selesai: kegiatanList.filter(k => getStatus(k) === 'selesai').length
+  }), [kegiatanList]);
+
+  const moveMarkerAndCircle = useCallback((lat, lng) => {
+    if (markerRef.current) markerRef.current.setLatLng([lat, lng]);
+    if (circleRef.current) circleRef.current.setLatLng([lat, lng]);
+    if (leafletInstance.current) leafletInstance.current.panTo([lat, lng]);
+  }, []);
+
+  const handleGeoQueryChange = (e) => {
+    const val = e.target.value;
+    setGeoQuery(val);
+    setGeoResults([]);
+    clearTimeout(geoDebounceRef.current);
+    if (val.trim().length < 3) return;
+    setGeoLoading(true);
+    geoDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await geocodeSearch(val);
+        setGeoResults(results);
+      } catch (err) { console.error('Geocoding error:', err); }
+      finally { setGeoLoading(false); }
+    }, 600);
+  };
+
+  const handleGeoSelect = (item) => {
+    const lat = parseFloat(item.lat);
+    const lng = parseFloat(item.lon);
+    const namaLokasi = item.name || item.display_name.split(',')[0].trim();
+    setForm(prev => ({ ...prev, lat, lng, lokasi: namaLokasi }));
+    moveMarkerAndCircle(lat, lng);
+    setGeoQuery('');
+    setGeoResults([]);
+    if (formErrors.lokasi) setFormErrors(p => ({ ...p, lokasi: null }));
+  };
+
+  const handleMapClick = useCallback(async (lat, lng) => {
+    setForm(prev => ({ ...prev, lat, lng }));
+    moveMarkerAndCircle(lat, lng);
+    setReverseLoading(true);
+    try {
+      const data = await reverseGeocode(lat, lng);
+      const nama = formatReverseResult(data);
+      if (nama) {
+        setForm(prev => ({ ...prev, lat, lng, lokasi: nama }));
+        setReverseToast(true);
+        setTimeout(() => setReverseToast(false), 2500);
+        if (formErrors.lokasi) setFormErrors(p => ({ ...p, lokasi: null }));
+      }
+    } catch (err) { console.error('Reverse geocoding error:', err); }
+    finally { setReverseLoading(false); }
+  }, [moveMarkerAndCircle, formErrors.lokasi]);
+
+  useEffect(() => {
+    if (currentStep === 2 && showModal && mapRef.current) {
+      const timer = setTimeout(() => {
+        if (!leafletInstance.current) {
+          leafletInstance.current = L.map(mapRef.current).setView([form.lat, form.lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletInstance.current);
+          markerRef.current = L.marker([form.lat, form.lng], { draggable: true, icon: DefaultIcon }).addTo(leafletInstance.current);
+          circleRef.current = L.circle([form.lat, form.lng], { radius: form.radius, color: '#16a34a', fillOpacity: 0.1 }).addTo(leafletInstance.current);
+          markerRef.current.on('dragend', async (e) => { const { lat, lng } = e.target.getLatLng(); await handleMapClick(lat, lng); });
+          leafletInstance.current.on('click', async (e) => {
+            const { lat, lng } = e.latlng;
+            markerRef.current.setLatLng([lat, lng]);
+            circleRef.current.setLatLng([lat, lng]);
+            await handleMapClick(lat, lng);
+          });
+        }
+      }, 300);
+      return () => {
+        if (leafletInstance.current) {
+          leafletInstance.current.remove();
+          leafletInstance.current = null;
+          markerRef.current = null;
+          circleRef.current = null;
+        }
+      };
+    }
+  }, [currentStep, showModal]);
+
+  useEffect(() => {
+    if (circleRef.current) circleRef.current.setRadius(Number(form.radius) || 100);
+  }, [form.radius]);
+
+  const validateStep1 = () => {
+    const errors = {};
+    if (!form.nama.trim()) errors.nama = "Nama kegiatan wajib diisi.";
+    else if (form.nama.trim().length > 50) errors.nama = "Nama kegiatan maksimal 50 karakter.";
+    if (form.desc && form.desc.trim().length > 150) errors.desc = "Deskripsi maksimal 150 karakter.";
+    if (!form.tglMulai) errors.tglMulai = "Tanggal mulai wajib diisi.";
+    if (!form.tglSelesai) errors.tglSelesai = "Tanggal selesai wajib diisi.";
+    if (!form.jamMulai) errors.jamMulai = "Jam mulai wajib diisi.";
+    if (!form.jamSelesai) errors.jamSelesai = "Jam selesai wajib diisi.";
+    return errors;
+  };
+
+  const validateStep2 = () => {
+    const errors = {};
+    if (!form.lokasi.trim()) errors.lokasi = "Nama lokasi wajib diisi.";
+    return errors;
+  };
+
+  const isStep1Valid = useMemo(() => (
+    form.nama.trim().length > 0 && form.nama.trim().length <= 50 &&
+    form.desc.trim().length <= 150 &&
+    !!form.tglMulai && !!form.tglSelesai && !!form.jamMulai && !!form.jamSelesai
+  ), [form.nama, form.desc, form.tglMulai, form.tglSelesai, form.jamMulai, form.jamSelesai]);
+
+  const isStep2Valid = useMemo(() => form.lokasi.trim().length > 0, [form.lokasi]);
+
+  const handleSave = async () => {
+    if (currentStep === 1) {
+      const errors = validateStep1();
+      if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+      setFormErrors({});
+      return setCurrentStep(2);
+    }
+    const errors = validateStep2();
+    if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+    const payload = {
+      title: form.nama, description: form.desc, location_name: form.lokasi,
+      latitude: form.lat, longitude: form.lng, radius_meters: form.radius,
+      // DIHAPUS: metode QR — sekarang hanya selfie
+      metode: 'selfie',
+      start_datetime: `${form.tglMulai} ${form.jamMulai}`,
+      end_datetime: `${form.tglSelesai} ${form.jamSelesai}`,
+      participant_ids: memberList.map(m => m.id)
+    };
+    try {
+      const method = isEditing ? "PUT" : "POST";
+      const url = isEditing ? `${API}/activities/${isEditing}` : `${API}/activities`;
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const result = await res.json();
+      if (!res.ok) { alert(result.message || "Gagal menyimpan kegiatan"); return; }
+      setShowModal(false);
+      fetchKegiatan();
+      // DIHAPUS: tidak ada lagi showSuccessQR — tidak perlu tampilkan QR setelah buat kegiatan
+    } catch (err) { alert("Gagal menyimpan"); }
+  };
+
+  const filteredKegiatan = kegiatanList.filter(k => {
+    const s = getStatus(k);
+    const matchTab = activeTab === 'semua' || s === activeTab;
+    return matchTab && k.title.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const charCounterClass = (len, max) => {
+    if (len > max) return "kg-char-counter over";
+    if (len >= max * 0.85) return "kg-char-counter warn";
+    return "kg-char-counter";
+  };
+
+  const activeKegiatan = kegiatanList.find(k => k.id === detailId);
+
+  // ── Rekap kementerian (dihitung dari absensiDetail) ───────────────────────
+  const rekapKementerian = useMemo(
+    () => buildRekapKementerian(absensiDetail),
+    [absensiDetail]
+  );
+
+  // ── Helper render foto selfie ─────────────────────────────────────────────
+  const renderFotoSelfie = (foto) => {
+    if (!foto) return <span style={{fontSize:'11px', color:'var(--muted)', fontStyle:'italic'}}>Tanpa foto</span>;
+    const src = foto.startsWith('data:') ? foto : `data:image/jpeg;base64,${foto}`;
+    return (
+      <img
+        src={src}
+        alt="selfie"
+        className="kg-selfie-thumb"
+        onClick={() => setPreviewPhoto(src)}
+        title="Klik untuk perbesar"
+      />
+    );
   };
 
   return (
-    <div className="flex h-screen bg-[#f4f4ef] overflow-hidden text-gray-800 font-sans">
-      {/* 1. SIDEBAR KONSISTEN */}
+    <div className="kg-page">
       <Sidebar />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300">
-        {/* 2. TOPBAR KONSISTEN */}
+      <div className="kg-main-content">
         <Topbar title="Manajemen Kegiatan" />
 
-        {/* 3. MAIN CONTENT */}
-        <main className="flex-1 overflow-y-auto">
-          {/* TOPBAR LOCAL (Action Bar) */}
-          <div className="bg-white border-b border-gray-200 px-7 py-4 flex items-center justify-between sticky top-0 z-[20]">
-            <div>
-              <h2 className="text-lg font-bold text-green-800">Daftar Kegiatan</h2>
-              <p className="text-xs text-gray-500 italic">Total {kegiatanList.length} kegiatan tercatat</p>
+        <div className="kg-topbar" style={{borderBottom:'none'}}>
+          <div>
+            <div className="kg-topbar-title">Daftar Kegiatan</div>
+            <div className="kg-topbar-sub">Total {stats.total} kegiatan tercatat</div>
+          </div>
+          <button className="kg-btn-primary" onClick={() => {
+            setIsEditing(null); setFormErrors({}); setGeoQuery(''); setGeoResults([]);
+            setForm({ nama: "", desc: "", tglMulai: todayStr, tglSelesai: todayStr, jamMulai: "09:00", jamSelesai: "17:00", lokasi: "", radius: 100, lat: -0.9471, lng: 100.4172 });
+            setCurrentStep(1); setShowModal(true);
+          }}>
+            <Plus size={16} /> Buat Kegiatan
+          </button>
+        </div>
+
+        <div className="kg-page-tabs">
+          {['semua', 'mendatang', 'berlangsung', 'selesai'].map(tab => (
+            <div key={tab} className={`kg-page-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)} ({tab === 'semua' ? stats.total : stats[tab]})
             </div>
-            <button 
-              onClick={openModal}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-md shadow-green-100"
-            >
-              <Plus size={16} strokeWidth={2.5} /> Buat Kegiatan
-            </button>
+          ))}
+        </div>
+
+        <div className="kg-content">
+          <div className="kg-stats-row">
+            <StatBox label="Total Kegiatan" value={stats.total} sub="Semua kegiatan" icon={<LayoutGrid size={18}/>} color="" />
+            <StatBox label="Mendatang" value={stats.mendatang} sub="Segera dilaksanakan" icon={<Calendar size={18}/>} color="blue" />
+            <StatBox label="Berlangsung" value={stats.berlangsung} sub="Sedang berjalan" icon={<Clock size={18}/>} color="amber" />
+            <StatBox label="Selesai" value={stats.selesai} sub="Kegiatan lampau" icon={<CheckCircle size={18}/>} color="rose" />
           </div>
 
-          {/* TABS NAVIGATION */}
-          <div className="bg-white border-b border-gray-200 px-7 flex gap-2">
-            {['semua', 'mendatang', 'berlangsung', 'selesai'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-3 px-4 text-sm font-medium border-b-2 transition-all capitalize ${
-                  activeTab === tab ? "border-green-600 text-green-700 font-bold" : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab} ({tab === 'semua' ? kegiatanList.length : kegiatanList.filter(k => k.status === tab).length})
-              </button>
-            ))}
-          </div>
-
-          <div className="p-7 space-y-6">
-            {/* STATS CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard label="Total Kegiatan" value="24" sub="Periode 2024-2025" color="green" icon={<LayoutGrid size={18}/>} />
-              <StatCard label="Mendatang" value="6" sub="30 hari ke depan" color="blue" icon={<Calendar size={18}/>} />
-              <StatCard label="Berlangsung" value="3" sub="Aktif saat ini" color="amber" icon={<Clock size={18}/>} />
-              <StatCard label="Selesai" value="15" sub="Avg Kehadiran 82%" color="rose" icon={<CheckCircle size={18}/>} />
+          <div className="kg-card">
+            <div className="kg-card-header">
+              <div className="kg-card-title"><LayoutGrid size={16} color="var(--g600)"/> Filter & Pencarian</div>
+              <div style={{maxWidth:'300px', position:'relative'}}>
+                <span style={{position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:'var(--muted)', zIndex:1, pointerEvents:'none'}}>
+                  <Search size={14}/>
+                </span>
+                <input
+                  className="kg-form-input"
+                  style={{width:'100%', paddingLeft:'40px', height:'36px'}}
+                  placeholder="Cari nama kegiatan..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
-
-            {/* LIST CARD */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-2 font-semibold text-sm text-gray-700">
-                  <LayoutGrid size={16} className="text-green-600" /> Filter & Pencarian
-                </div>
-                <div className="flex items-center gap-3 flex-1 max-w-xl">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
-                    <input 
-                      type="text" 
-                      placeholder="Cari nama kegiatan..." 
-                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-green-500 shadow-sm"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+            <div className="kg-card-body">
+              <div className="kg-kegiatan-grid">
+                {filteredKegiatan.length === 0 ? (
+                  <div style={{gridColumn:'1/-1', textAlign:'center', padding:'40px', color:'var(--muted)', fontSize:'14px', fontWeight:'500'}}>
+                    Belum ada kegiatan yang dibuat
                   </div>
-                  <select 
-                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none bg-white shadow-sm cursor-pointer"
-                    value={filterMetode}
-                    onChange={(e) => setFilterMetode(e.target.value)}
-                  >
-                    <option value="semua">Semua Metode</option>
-                    <option value="qr">QR Code</option>
-                    <option value="maps">Lokasi</option>
-                    <option value="keduanya">QR + Lokasi</option>
-                  </select>
+                ) : (
+                  filteredKegiatan.map(k => {
+                    const s = getStatus(k);
+                    return (
+                      <div key={k.id} className="kg-k-card">
+                        <div className="kg-k-card-top">
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                            <div className="kg-k-name">{k.title}</div>
+                            <StatusBadge status={s} />
+                          </div>
+                          <div className="kg-k-meta">
+                            <div className="kg-k-meta-row"><Calendar size={14} color="var(--g600)"/> {new Date(k.start_datetime).toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'})}</div>
+                            <div className="kg-k-meta-row"><MapPin size={14} color="var(--g600)"/> {k.location_name}</div>
+                            <div className="kg-k-meta-row"><Users size={14} color="var(--g600)"/> {k.peserta} Anggota</div>
+                          </div>
+                        </div>
+                        <div className="kg-k-card-footer">
+                          <button className="kg-btn-primary" style={{flex:1, justifyContent:'center'}} onClick={() => { setDetailId(k.id); fetchAttendance(k.id); setDrawerTab('daftar'); }}>
+                            Kelola Absensi
+                          </button>
+                          {s === 'mendatang' && (
+                            <>
+                              <button className="kg-btn-edit" onClick={() => handleEditOpen(k)} title="Edit Kegiatan"><Edit3 size={16}/></button>
+                              <button className="kg-btn-danger" onClick={() => handleDelete(k.id)} title="Hapus Kegiatan"><Trash2 size={16}/></button>
+                            </>
+                          )}
+                          <button className="kg-btn-outline" onClick={() => { setDetailId(k.id); fetchAttendance(k.id); setDrawerTab('daftar'); }}><Eye size={16}/></button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── MODAL BUAT/EDIT ───────────────────────────────────────────────── */}
+        {showModal && (
+          <div className="kg-modal-overlay">
+            <div className="kg-modal">
+              <div className="kg-modal-header">
+                <div style={{fontWeight:700}}>{isEditing ? 'Update Kegiatan' : 'Buat Kegiatan Baru'}</div>
+                <button style={{background:'none', border:'none', cursor:'pointer'}} onClick={() => setShowModal(false)}><X size={18}/></button>
+              </div>
+              <div className="kg-stepper">
+                <div className={`kg-step-item ${currentStep >= 1 ? 'active' : ''}`}>
+                  <div className="kg-step-circle">{currentStep > 1 ? '✓' : '1'}</div>
+                  <span>Info Dasar</span>
+                </div>
+                <div className="kg-step-line" />
+                <div className={`kg-step-item ${currentStep === 2 ? 'active' : ''}`}>
+                  <div className="kg-step-circle">2</div>
+                  <span>Lokasi</span>
+                </div>
+              </div>
+              <div style={{padding:'24px'}}>
+                {currentStep === 1 ? (
+                  <div className="kg-form-grid">
+                    <div className="kg-form-group full">
+                      <label className="kg-form-label">Nama Kegiatan *</label>
+                      <input className={`kg-form-input ${formErrors.nama ? 'error' : ''}`} placeholder="Masukkan nama kegiatan..." maxLength={50} value={form.nama} onChange={(e) => { setForm({...form, nama: e.target.value}); if (formErrors.nama) setFormErrors(p => ({...p, nama: null})); }} />
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                        {formErrors.nama ? <span className="kg-field-error">{formErrors.nama}</span> : <span />}
+                        <span className={charCounterClass(form.nama.length, 50)}>{form.nama.length}/50</span>
+                      </div>
+                    </div>
+                    <div className="kg-form-group full">
+                      <label className="kg-form-label">Deskripsi <span style={{fontWeight:400, textTransform:'none', fontSize:'11px', color:'var(--muted)'}}>— opsional</span></label>
+                      <textarea className={`kg-form-input ${formErrors.desc ? 'error' : ''}`} style={{height:'80px', padding:'10px', resize:'vertical'}} placeholder="Deskripsi singkat kegiatan (opsional)..." maxLength={150} value={form.desc} onChange={(e) => { setForm({...form, desc: e.target.value}); if (formErrors.desc) setFormErrors(p => ({...p, desc: null})); }} />
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                        {formErrors.desc ? <span className="kg-field-error">{formErrors.desc}</span> : <span />}
+                        <span className={charCounterClass(form.desc.length, 150)}>{form.desc.length}/150</span>
+                      </div>
+                    </div>
+                    <div className="kg-form-group">
+                      <label className="kg-form-label">Tanggal Mulai *</label>
+                      <input type="date" className={`kg-form-input ${formErrors.tglMulai ? 'error' : ''}`} min={todayStr} value={form.tglMulai} onChange={(e) => { const newStart = e.target.value; setForm(prev => ({ ...prev, tglMulai: newStart, tglSelesai: prev.tglSelesai < newStart ? newStart : prev.tglSelesai })); if (formErrors.tglMulai) setFormErrors(p => ({...p, tglMulai: null})); }} />
+                      {formErrors.tglMulai && <span className="kg-field-error">{formErrors.tglMulai}</span>}
+                    </div>
+                    <div className="kg-form-group">
+                      <label className="kg-form-label">Jam Mulai *</label>
+                      <input type="time" className={`kg-form-input ${formErrors.jamMulai ? 'error' : ''}`} value={form.jamMulai} onChange={(e) => { setForm({...form, jamMulai: e.target.value}); if (formErrors.jamMulai) setFormErrors(p => ({...p, jamMulai: null})); }} />
+                      {formErrors.jamMulai && <span className="kg-field-error">{formErrors.jamMulai}</span>}
+                    </div>
+                    <div className="kg-form-group">
+                      <label className="kg-form-label">Tanggal Selesai *</label>
+                      <input type="date" className={`kg-form-input ${formErrors.tglSelesai ? 'error' : ''}`} min={form.tglMulai || todayStr} value={form.tglSelesai} onChange={(e) => { setForm({...form, tglSelesai: e.target.value}); if (formErrors.tglSelesai) setFormErrors(p => ({...p, tglSelesai: null})); }} />
+                      {formErrors.tglSelesai && <span className="kg-field-error">{formErrors.tglSelesai}</span>}
+                    </div>
+                    <div className="kg-form-group">
+                      <label className="kg-form-label">Jam Selesai *</label>
+                      <input type="time" className={`kg-form-input ${formErrors.jamSelesai ? 'error' : ''}`} value={form.jamSelesai} onChange={(e) => { setForm({...form, jamSelesai: e.target.value}); if (formErrors.jamSelesai) setFormErrors(p => ({...p, jamSelesai: null})); }} />
+                      {formErrors.jamSelesai && <span className="kg-field-error">{formErrors.jamSelesai}</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="kg-form-group" style={{marginBottom:'10px'}}>
+                      <label className="kg-form-label">Cari Lokasi <span style={{fontWeight:400, textTransform:'none', fontSize:'11px', color:'var(--muted)', marginLeft:'6px'}}>— ketik untuk mencari, atau klik/drag pin di peta</span></label>
+                      <div className="kg-geocode-wrap" ref={geoWrapRef}>
+                        <div className="kg-geocode-input-wrap">
+                          <span className="kg-geocode-icon"><Search size={15}/></span>
+                          <input className="kg-geocode-input" placeholder="Cari nama tempat, jalan, gedung..." value={geoQuery} onChange={handleGeoQueryChange} autoComplete="off" />
+                          {geoLoading && <span className="kg-geocode-spinner" />}
+                        </div>
+                        {geoResults.length > 0 && (
+                          <div className="kg-geocode-results">
+                            {geoResults.map((item, i) => (
+                              <div key={i} className="kg-geocode-item" onMouseDown={() => handleGeoSelect(item)}>
+                                <MapPin size={14} color="var(--g600)" style={{flexShrink:0, marginTop:'2px'}}/>
+                                <div>
+                                  <div className="kg-geocode-item-name">{item.name || item.display_name.split(',')[0]}</div>
+                                  <div className="kg-geocode-item-addr">{item.display_name}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="kg-form-group" style={{marginBottom:0}}>
+                      <label className="kg-form-label">Nama Lokasi * {reverseLoading && <span style={{fontWeight:400, textTransform:'none', fontSize:'11px', color:'var(--g600)', marginLeft:'8px'}}>⏳ Mendeteksi lokasi...</span>}</label>
+                      <input className={`kg-form-input ${formErrors.lokasi ? 'error' : ''}`} placeholder="Nama lokasi terisi otomatis atau ketik manual..." value={form.lokasi} onChange={(e) => { setForm({...form, lokasi: e.target.value}); if (formErrors.lokasi) setFormErrors(p => ({...p, lokasi: null})); }} />
+                      {formErrors.lokasi && <span className="kg-field-error" style={{marginTop:'4px'}}>{formErrors.lokasi}</span>}
+                    </div>
+                    <div style={{position:'relative'}}>
+                      <div id="kg-leaflet-map" ref={mapRef}></div>
+                      {reverseToast && <div className="kg-reverse-toast">📍 Nama lokasi diperbarui otomatis</div>}
+                    </div>
+                    <div className="kg-map-meta">
+                      <div className="kg-map-coords"><MapPin size={12} style={{display:'inline', marginRight:'4px', verticalAlign:'middle'}}/>{form.lat.toFixed(4)}, {form.lng.toFixed(4)}</div>
+                      <div className="kg-radius-wrap">
+                        <span style={{color:'var(--muted)', fontSize:'12px'}}>Radius:</span>
+                        <input type="number" className="kg-radius-input" value={form.radius} onChange={(e)=>setForm({...form, radius:e.target.value})} />
+                        <span style={{color:'var(--muted)', fontSize:'12px'}}>meter</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{padding:'16px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between'}}>
+                <button className="kg-btn-outline" onClick={() => currentStep === 2 ? setCurrentStep(1) : setShowModal(false)}>Kembali</button>
+                <button className="kg-btn-primary" disabled={currentStep === 1 ? !isStep1Valid : !isStep2Valid} onClick={handleSave}>
+                  {currentStep === 1 ? "Lanjut →" : "Simpan Kegiatan ✓"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── DETAIL DRAWER ─────────────────────────────────── */}
+        {detailId && (
+          <div className="kg-detail-overlay" onClick={(e) => e.target === e.currentTarget && setDetailId(null)}>
+            <div className="kg-detail-panel">
+
+              {/* ── Header drawer ── */}
+              <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border)'}}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                  <div>
+                    <div style={{fontSize:'12px', color:'var(--muted)'}}>Kelola riwayat kehadiran anggota</div>
+                    <div style={{fontSize:'18px', fontWeight:800, color:'var(--g800)', marginTop:'2px'}}>{activeKegiatan?.title}</div>
+                    {activeKegiatan && (
+                      <div style={{fontSize:'12px', color:'var(--muted)', marginTop:'4px', display:'flex', gap:'12px'}}>
+                        <span><Calendar size={11} style={{display:'inline', marginRight:'4px', verticalAlign:'middle'}}/>{new Date(activeKegiatan.start_datetime).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</span>
+                        <span><MapPin size={11} style={{display:'inline', marginRight:'4px', verticalAlign:'middle'}}/>{activeKegiatan.location_name}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button style={{background:'none', border:'none', cursor:'pointer'}} onClick={() => setDetailId(null)}><X size={20}/></button>
                 </div>
               </div>
 
-              <div className="p-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredKegiatan.map((k) => (
-                    <KegiatanCard key={k.id} data={k} onOpenDetail={() => setSelectedKegiatan(k)} />
-                  ))}
+              {/* ── Stat summary ── */}
+              <div style={{padding:'16px 24px', borderBottom:'1px solid var(--border)', background:'#fafafa'}}>
+                <div className="kg-abs-stats-grid">
+                  <div className="kg-abs-stat-box" style={{background:'var(--g50)'}}>
+                    <div style={{fontSize:'10px', color:'var(--muted)', fontWeight:700}}>HADIR</div>
+                    <div style={{fontSize:'26px', fontWeight:800, color:'var(--g700)', fontFamily:'var(--mono)'}}>{absensiDetail.filter(a=>a.status==='hadir').length}</div>
+                    <div style={{fontSize:'10px', color:'var(--muted)'}}>dari {absensiDetail.length} staf</div>
+                  </div>
+                  <div className="kg-abs-stat-box" style={{background:'#fff1f2'}}>
+                    <div style={{fontSize:'10px', color:'var(--muted)', fontWeight:700}}>ALFA</div>
+                    <div style={{fontSize:'26px', fontWeight:800, color:'#ef4444', fontFamily:'var(--mono)'}}>{absensiDetail.filter(a=>a.status!=='hadir').length}</div>
+                    <div style={{fontSize:'10px', color:'var(--muted)'}}>tidak hadir</div>
+                  </div>
+                  <div className="kg-abs-stat-box" style={{background:'#f8fafc'}}>
+                    <div style={{fontSize:'10px', color:'var(--muted)', fontWeight:700}}>TOTAL</div>
+                    <div style={{fontSize:'26px', fontWeight:800, fontFamily:'var(--mono)'}}>{absensiDetail.length}</div>
+                    <div style={{fontSize:'10px', color:'var(--muted)'}}>peserta terdaftar</div>
+                  </div>
                 </div>
-                {filteredKegiatan.length === 0 && (
-                  <div className="py-20 text-center text-gray-400">
-                    <Search size={40} className="mx-auto mb-3 opacity-20" />
-                    <p>Tidak ada kegiatan ditemukan</p>
+              </div>
+
+              {/* ── Tab dalam drawer ── */}
+              <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--white)', padding:'0 24px'}}>
+                {[
+                  { key: 'daftar', label: 'Daftar Kehadiran' },
+                  { key: 'rekap',  label: 'Rekap Kementerian' },
+                ].map(t => (
+                  <div
+                    key={t.key}
+                    onClick={() => setDrawerTab(t.key)}
+                    style={{
+                      padding:'10px 16px', fontSize:'12px', fontWeight:600, cursor:'pointer',
+                      color: drawerTab === t.key ? 'var(--g700)' : 'var(--muted)',
+                      borderBottom: drawerTab === t.key ? '2px solid var(--g600)' : '2px solid transparent',
+                      transition:'all .15s',
+                    }}
+                  >
+                    {t.label}
+                  </div>
+                ))}
+                {/* Tombol kanan: refresh + export */}
+                <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'8px'}}>
+                  <button
+                    className="kg-btn-outline"
+                    style={{height:'30px', fontSize:'11px', padding:'0 10px'}}
+                    onClick={handleRefreshAbsensi}
+                    disabled={refreshingAbsensi}
+                    title="Refresh data absensi"
+                  >
+                    <RefreshCw size={13} style={{animation: refreshingAbsensi ? 'kg-spin 0.7s linear infinite' : 'none'}}/>
+                    {refreshingAbsensi ? 'Memuat...' : 'Refresh'}
+                  </button>
+                  <button
+                    className="kg-btn-primary"
+                    style={{height:'30px', fontSize:'11px', padding:'0 10px'}}
+                    onClick={handleExportExcel}
+                    title="Export ke Excel"
+                  >
+                    <FileSpreadsheet size={13}/> Export Excel
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Body drawer ── */}
+              <div style={{flex:1, overflowY:'auto'}}>
+
+                {/* TAB: Daftar Kehadiran */}
+                {drawerTab === 'daftar' && (
+                  <div style={{padding:'0'}}>
+                    <table className="kg-abs-table">
+                      <thead>
+                        <tr>
+                          <th style={{paddingLeft:'20px'}}>Nama</th>
+                          <th>Kementerian</th>
+                          <th>Status</th>
+                          <th>Bukti Foto</th>
+                          <th>Waktu Absen</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {absensiDetail.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} style={{textAlign:'center', padding:'40px', color:'var(--muted)', fontStyle:'italic'}}>
+                              Belum ada data absensi
+                            </td>
+                          </tr>
+                        ) : (
+                          absensiDetail.map((a, i) => (
+                            <tr key={i}>
+                              <td style={{paddingLeft:'20px'}}>
+                                <div style={{fontWeight:600, color:'var(--text)'}}>{a.name}</div>
+                              </td>
+                              <td style={{color:'var(--muted)', fontSize:'12px'}}>{a.kementerian || '-'}</td>
+                              <td>
+                                <StatusBadge status={a.status === 'hadir' ? 'hadir' : 'alfa'} />
+                              </td>
+                              <td>
+                                {/* KOLOM BARU: bukti foto selfie */}
+                                {renderFotoSelfie(a.selfie_photo)}
+                              </td>
+                              <td style={{fontSize:'12px', color:'var(--muted)', fontFamily:'var(--mono)'}}>
+                                {a.check_in_time
+                                  ? new Date(a.check_in_time).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})
+                                  : '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* TAB: Rekap per Kementerian */}
+                {drawerTab === 'rekap' && (
+                  <div style={{padding:'20px 24px'}}>
+                    <div style={{fontSize:'11px', fontWeight:700, color:'var(--muted)', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.05em'}}>
+                      Ringkasan Kehadiran per Kementerian
+                    </div>
+                    {rekapKementerian.length === 0 ? (
+                      <div style={{textAlign:'center', padding:'40px', color:'var(--muted)', fontStyle:'italic', fontSize:'13px'}}>
+                        Belum ada data
+                      </div>
+                    ) : (
+                      <div style={{border:'1px solid var(--border)', borderRadius:'12px', overflow:'hidden'}}>
+                        <table className="kg-kem-table">
+                          <thead>
+                            <tr>
+                              <th>Kementerian</th>
+                              <th style={{textAlign:'center'}}>Total</th>
+                              <th style={{textAlign:'center', color:'var(--g700)'}}>Hadir</th>
+                              <th style={{textAlign:'center', color:'#ef4444'}}>Alfa</th>
+                              <th style={{minWidth:'140px'}}>Kehadiran</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rekapKementerian.map((r, i) => {
+                              const pct = r.total > 0 ? Math.round((r.hadir / r.total) * 100) : 0;
+                              return (
+                                <tr key={i}>
+                                  <td style={{fontWeight:600, color:'var(--text)'}}>{r.nama}</td>
+                                  <td style={{textAlign:'center', fontFamily:'var(--mono)', fontWeight:700}}>{r.total}</td>
+                                  <td style={{textAlign:'center'}}>
+                                    <span style={{background:'var(--g50)', color:'var(--g700)', fontWeight:700, fontFamily:'var(--mono)', padding:'2px 10px', borderRadius:'6px', fontSize:'12px'}}>
+                                      {r.hadir}
+                                    </span>
+                                  </td>
+                                  <td style={{textAlign:'center'}}>
+                                    <span style={{background:'#fff1f2', color:'#ef4444', fontWeight:700, fontFamily:'var(--mono)', padding:'2px 10px', borderRadius:'6px', fontSize:'12px'}}>
+                                      {r.alfa}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <div className="kg-progress-wrap">
+                                      <div className="kg-progress-bar">
+                                        <div className="kg-progress-fill" style={{width:`${pct}%`}} />
+                                      </div>
+                                      <span style={{fontSize:'11px', fontWeight:700, color:'var(--muted)', fontFamily:'var(--mono)', minWidth:'32px'}}>{pct}%</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </div>
-        </main>
-      </div>
+        )}
 
-      {/* --- MODAL BUAT KEGIATAN --- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-            <div className="px-6 py-4 border-b flex justify-between items-start sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="font-bold text-lg text-gray-800">Buat Kegiatan Baru</h3>
-                <p className="text-xs text-gray-500">Lengkapi langkah-langkah untuk membuat absensi kegiatan</p>
+        {/* ── MODAL PREVIEW FOTO SELFIE ─────────────────────────────────────── */}
+        {previewPhoto && (
+          <div className="kg-photo-overlay" onClick={() => setPreviewPhoto(null)}>
+            <div className="kg-photo-modal" onClick={(e) => e.stopPropagation()}>
+              <img src={previewPhoto} alt="Bukti selfie absensi" />
+              <div className="kg-photo-modal-footer">
+                <div style={{fontSize:'12px', color:'var(--muted)', display:'flex', alignItems:'center', gap:'6px'}}>
+                  <Camera size={14}/> Bukti foto selfie absensi
+                </div>
+                <button className="kg-btn-outline" style={{height:'30px', fontSize:'12px'}} onClick={() => setPreviewPhoto(null)}>
+                  <X size={14}/> Tutup
+                </button>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-gray-100 rounded border border-gray-200">
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* STEPPER */}
-            <div className="flex px-6 py-4 bg-gray-50 border-b gap-4 items-center overflow-x-auto">
-              <StepItem num={1} label="Info Dasar" active={currentStep === 1} done={currentStep > 1} />
-              <div className="h-px bg-gray-200 flex-1 min-w-[20px]"></div>
-              <StepItem num={2} label="Lokasi" active={currentStep === 2} done={currentStep > 2} />
-              <div className="h-px bg-gray-200 flex-1 min-w-[20px]"></div>
-              <StepItem num={3} label="Metode" active={currentStep === 3} done={currentStep > 3} />
-              <div className="h-px bg-gray-200 flex-1 min-w-[20px]"></div>
-              <StepItem num={4} label="Peserta" active={currentStep === 4} done={currentStep > 4} />
-            </div>
-
-            <div className="p-6 flex-1">
-              {currentStep === 1 && (
-                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Nama Kegiatan</label>
-                    <input 
-                      type="text" 
-                      name="nama"
-                      value={newKegiatan.nama}
-                      onChange={handleInputChange}
-                      className="w-full border p-2.5 rounded-lg mt-1 outline-none focus:border-green-500" 
-                      placeholder="Contoh: Aksi ke DPR RI" 
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Deskripsi</label>
-                    <textarea 
-                      name="desc"
-                      value={newKegiatan.desc}
-                      onChange={handleInputChange}
-                      className="w-full border p-2.5 rounded-lg mt-1 h-24 outline-none focus:border-green-500 resize-none" 
-                      placeholder="Detail kegiatan..."
-                    ></textarea>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tgl Mulai</label>
-                    <input 
-                      type="date" 
-                      name="tglMulai"
-                      value={newKegiatan.tglMulai}
-                      onChange={handleInputChange}
-                      className="w-full border p-2.5 rounded-lg mt-1" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tgl Selesai</label>
-                    <input 
-                      type="date" 
-                      name="tglSelesai"
-                      value={newKegiatan.tglSelesai}
-                      onChange={handleInputChange}
-                      className="w-full border p-2.5 rounded-lg mt-1" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jam Mulai</label>
-                    <input 
-                      type="time" 
-                      name="jamMulai"
-                      value={newKegiatan.jamMulai}
-                      onChange={handleInputChange}
-                      className="w-full border p-2.5 rounded-lg mt-1" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jam Selesai</label>
-                    <input 
-                      type="time" 
-                      name="jamSelesai"
-                      value={newKegiatan.jamSelesai}
-                      onChange={handleInputChange}
-                      className="w-full border p-2.5 rounded-lg mt-1" 
-                    />
-                  </div>
-                </div>
-              )}
-
-              {currentStep === 2 && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-gray-700">Nama Lokasi</label>
-                    <div className="relative mt-1">
-                      <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input 
-                        type="text" 
-                        name="lokasi"
-                        value={newKegiatan.lokasi}
-                        onChange={handleInputChange}
-                        className="w-full border pl-10 pr-4 py-2.5 rounded-lg outline-none focus:border-green-500 shadow-sm" 
-                        placeholder="Nama gedung / lokasi" 
-                      />
-                    </div>
-                  </div>
-                  <div className="border rounded-lg overflow-hidden h-[250px] relative z-0">
-                    <MapContainer center={[newKegiatan.lat, newKegiatan.lng]} zoom={15} style={{ height: "100%", width: "100%" }}>
-                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      <Marker position={[newKegiatan.lat, newKegiatan.lng]} />
-                      <Circle center={[newKegiatan.lat, newKegiatan.lng]} radius={newKegiatan.radius} pathOptions={{ color: 'green', fillColor: 'green' }} />
-                      <MapClickHandler setCoords={(p) => setNewKegiatan({...newKegiatan, lat: p.lat, lng: p.lng})} />
-                      <ChangeView center={[newKegiatan.lat, newKegiatan.lng]} />
-                    </MapContainer>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span className="font-mono bg-gray-50 px-2 py-1 rounded">{newKegiatan.lat.toFixed(4)}, {newKegiatan.lng.toFixed(4)}</span>
-                    <div className="flex items-center gap-2">
-                      Radius Absen: 
-                      <input 
-                        type="number" 
-                        name="radius"
-                        value={newKegiatan.radius} 
-                        onChange={handleInputChange}
-                        className="border w-16 px-2 py-1 rounded font-mono focus:border-green-500 outline-none" 
-                      /> meter
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {currentStep === 3 && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Pilih Metode Absensi</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <MetodeCard 
-                      id="qr" title="QR Code Saja" desc="Cukup scan QR" 
-                      icon={<QrCode size={20} className="text-green-600"/>} 
-                      selected={newKegiatan.metode === 'qr'} 
-                      onClick={() => setNewKegiatan({...newKegiatan, metode: 'qr'})} 
-                    />
-                    <MetodeCard 
-                      id="maps" title="Lokasi Saja" desc="Cek Geofencing" 
-                      icon={<Globe size={20} className="text-blue-600"/>} 
-                      selected={newKegiatan.metode === 'maps'} 
-                      onClick={() => setNewKegiatan({...newKegiatan, metode: 'maps'})} 
-                    />
-                    <MetodeCard 
-                      id="keduanya" title="Keduanya" desc="QR + Geofencing" 
-                      icon={<LayoutGrid size={20} className="text-purple-600"/>} 
-                      selected={newKegiatan.metode === 'keduanya'} 
-                      onClick={() => setNewKegiatan({...newKegiatan, metode: 'keduanya'})} 
-                    />
-                  </div>
-                  <div className="bg-green-50 border border-green-200 p-4 rounded-lg flex gap-3 shadow-sm">
-                    <Info size={18} className="text-green-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-green-800 leading-relaxed italic">
-                      {newKegiatan.metode === 'keduanya' ? "Anggota wajib menscan QR Code dan berada dalam radius lokasi kegiatan yang telah ditentukan." : "Metode ini memberikan kemudahan validasi kehadiran anggota."}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {currentStep === 4 && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                   <div className="flex justify-between items-center">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Pilih Peserta</p>
-                    <div className="flex gap-2">
-                       <button onClick={() => setSelectedPeserta(new Set(INITIAL_MEMBERS.map(m=>m.id)))} className="text-[10px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded font-bold transition-all">Pilih Semua</button>
-                       <button onClick={() => setSelectedPeserta(new Set())} className="text-[10px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded font-bold transition-all">Batal Semua</button>
-                    </div>
-                   </div>
-                   <div className="border rounded-xl max-h-[250px] overflow-y-auto divide-y shadow-inner">
-                      {INITIAL_MEMBERS.map((m) => (
-                        <div key={m.id} className="p-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
-                          <input 
-                            type="checkbox" 
-                            checked={selectedPeserta.has(m.id)} 
-                            onChange={(e) => {
-                              const next = new Set(selectedPeserta);
-                              if(e.target.checked) next.add(m.id); else next.delete(m.id);
-                              setSelectedPeserta(next);
-                            }}
-                            className="w-4 h-4 accent-green-600 cursor-pointer" 
-                          />
-                          <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {m.name.substring(0,2).toUpperCase()}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs font-bold text-gray-700">{m.name}</p>
-                            <p className="text-[10px] text-gray-500 font-mono italic">{m.nim} · {m.kem}</p>
-                          </div>
-                        </div>
-                      ))}
-                   </div>
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t flex items-center justify-between sticky bottom-0 bg-white">
-              <button 
-                onClick={() => setCurrentStep(Math.max(1, currentStep-1))}
-                className={`text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors ${currentStep === 1 ? 'invisible' : 'visible'}`}
-              >
-                Kembali
-              </button>
-              <div className="text-xs text-gray-400 font-medium font-mono">Langkah {currentStep} / 4</div>
-              <button 
-                onClick={handleNextStep}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-md shadow-green-100"
-              >
-                {currentStep === 4 ? "Buat Kegiatan" : "Lanjut"} <ChevronRight size={16} />
-              </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* --- PANEL DETAIL KEGIATAN (SIDEBAR SLIDE) --- */}
-      {selectedKegiatan && (
-        <div className="fixed inset-0 z-[2000] flex justify-end">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={() => setSelectedKegiatan(null)}></div>
-          <div className="relative bg-white w-full max-w-lg h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-6 border-b flex justify-between items-start">
-               <div>
-                  <h3 className="font-bold text-lg text-green-800 tracking-tight">{selectedKegiatan.nama}</h3>
-                  <p className="text-xs text-gray-500 uppercase font-medium">{selectedKegiatan.tanggal} · {selectedKegiatan.jam}</p>
-                  <div className="flex gap-2 mt-2">
-                    <StatusBadge status={selectedKegiatan.status} />
-                    <span className="text-[9px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200 uppercase tracking-widest">{selectedKegiatan.metode}</span>
-                  </div>
-               </div>
-               <button onClick={() => setSelectedKegiatan(null)} className="p-1.5 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex px-6 border-b bg-gray-50/50">
-               {['absensi', 'qr', 'lokasi'].map((t) => (
-                 <button 
-                    key={t} onClick={() => setDetailTab(t)}
-                    className={`py-3 px-6 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-                      detailTab === t ? 'border-green-600 text-green-700' : 'border-transparent text-gray-400 hover:text-gray-600'
-                    }`}
-                  >
-                   {t}
-                 </button>
-               ))}
-            </div>
-
-            <div className="p-6 flex-1 overflow-y-auto space-y-5">
-               {detailTab === 'absensi' && (
-                 <div className="space-y-6">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-green-50/50 p-3 rounded-xl text-center border border-green-100 shadow-sm">
-                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-tighter">Hadir</p>
-                        <p className="text-2xl font-bold text-green-800 font-mono tracking-tighter">{selectedKegiatan.hadir}</p>
-                      </div>
-                      <div className="bg-red-50/50 p-3 rounded-xl text-center border border-red-100 shadow-sm">
-                        <p className="text-[10px] text-red-600 font-bold uppercase tracking-tighter">Alpa</p>
-                        <p className="text-2xl font-bold text-red-800 font-mono tracking-tighter">{selectedKegiatan.peserta - selectedKegiatan.hadir}</p>
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded-xl text-center border border-gray-100 shadow-sm">
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Total</p>
-                        <p className="text-2xl font-bold text-gray-700 font-mono tracking-tighter">{selectedKegiatan.peserta}</p>
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto border rounded-xl shadow-sm">
-                      <table className="w-full text-xs text-left">
-                        <thead className="bg-gray-50 text-[10px] uppercase font-bold text-gray-400">
-                          <tr>
-                            <th className="p-3">Nama Anggota</th>
-                            <th className="p-3">Kem.</th>
-                            <th className="p-3">Waktu</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {INITIAL_MEMBERS.map((m, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                               <td className="p-3 font-semibold text-gray-700">{m.name}</td>
-                               <td className="p-3 text-gray-400 font-medium uppercase tracking-tighter">{m.kem.substring(0,3)}</td>
-                               <td className="p-3 font-mono text-gray-400 italic">09:{10 + idx}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                 </div>
-               )}
-
-               {detailTab === 'qr' && (
-                 <div className="flex flex-col items-center gap-6 py-6 animate-in zoom-in-95">
-                    <div className="p-5 border-2 border-gray-50 rounded-[2rem] bg-white shadow-xl shadow-green-900/5">
-                      <QRCodeSVG value={`https://bem.unand.ac.id/absen/${selectedKegiatan.kode}`} size={200} />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-mono text-2xl font-bold tracking-widest text-green-700">{selectedKegiatan.kode}</p>
-                      <p className="text-xs text-gray-400 mt-1 italic">Scan QR untuk absen atau gunakan kode di atas</p>
-                    </div>
-                    <div className="flex gap-3 w-full">
-                       <button className="flex-1 border p-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors border-gray-200 text-gray-600">
-                         <Printer size={16} /> Print QR
-                       </button>
-                       <button className="flex-1 bg-green-600 text-white p-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all shadow-md shadow-green-100">
-                         <Download size={16} /> Download
-                       </button>
-                    </div>
-                 </div>
-               )}
-
-               {detailTab === 'lokasi' && (
-                 <div className="space-y-4 animate-in fade-in">
-                    <div className="h-[280px] border border-gray-100 rounded-2xl overflow-hidden relative z-0 shadow-inner">
-                      <MapContainer center={[selectedKegiatan.lat, selectedKegiatan.lng]} zoom={16} style={{ height: "100%", width: "100%" }}>
-                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                        <Marker position={[selectedKegiatan.lat, selectedKegiatan.lng]} />
-                        <Circle center={[selectedKegiatan.lat, selectedKegiatan.lng]} radius={100} pathOptions={{ color: '#16a34a' }} />
-                      </MapContainer>
-                    </div>
-                    <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 space-y-3 shadow-sm">
-                       <div className="flex items-center gap-3 text-xs">
-                          <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 shrink-0">
-                            <MapPin size={14} />
-                          </div>
-                          <span className="text-gray-600 leading-tight"><b>Lokasi:</b> {selectedKegiatan.lokasi}</span>
-                       </div>
-                       <div className="flex items-center gap-3 text-xs">
-                          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                            <CheckCircle size={14} />
-                          </div>
-                          <span className="text-gray-600"><b>Radius Absen:</b> 100 Meter dari titik pusat</span>
-                       </div>
-                    </div>
-                 </div>
-               )}
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-// --- SUB-COMPONENTS ---
-function StatCard({ label, value, sub, color, icon }) {
-  const colors = {
-    green: "before:bg-green-500",
-    blue: "before:bg-blue-500",
-    amber: "before:bg-amber-500",
-    rose: "before:bg-rose-500"
+const StatBox = ({ label, value, sub, icon, color }) => (
+  <div className={`kg-stat-card ${color}`}>
+    <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px'}}>
+      <div style={{color: color === 'rose' ? '#f43f5e' : color === 'blue' ? '#3b82f6' : color === 'amber' ? '#f59e0b' : 'var(--g700)'}}>{icon}</div>
+      <div className="kg-stat-label">{label}</div>
+    </div>
+    <div className="kg-stat-value">{value}</div>
+    <div className="kg-stat-sub">{sub}</div>
+  </div>
+);
+
+const StatusBadge = ({ status }) => {
+  const config = {
+    mendatang  : { label: "Mendatang",   color: "#3b82f6", bg: "#eff6ff" },
+    berlangsung: { label: "Berlangsung", color: "#f59e0b", bg: "#fffbeb" },
+    selesai    : { label: "Selesai",     color: "#9ca3af", bg: "#f9fafb" },
+    hadir      : { label: "Hadir",       color: "#16a34a", bg: "#f0fdf4" },
+    alfa       : { label: "Alfa",        color: "#ef4444", bg: "#fef2f2" },
   };
+  const s = config[status] || config.selesai;
   return (
-    <div className={`bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-[3px] ${colors[color]}`}>
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 transition-transform hover:scale-110 duration-300 ${color === 'green' ? 'bg-green-50 text-green-600' : color === 'blue' ? 'bg-blue-50 text-blue-600' : color === 'amber' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
-        {icon}
-      </div>
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-      <p className="text-3xl font-bold font-mono text-gray-800 tracking-tighter leading-none">{value}</p>
-      <p className="text-[10px] text-gray-400 mt-1 font-medium italic">{sub}</p>
-    </div>
-  );
-}
-
-function KegiatanCard({ data, onOpenDetail }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-xl hover:shadow-green-900/5 transition-all group flex flex-col">
-      <div className="p-4 border-b border-gray-50 flex-1">
-        <div className="flex justify-between items-start mb-3 gap-2">
-          <h4 className="text-sm font-bold text-gray-800 leading-tight line-clamp-2">{data.nama}</h4>
-          <StatusBadge status={data.status} />
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[11px] text-gray-400 font-medium uppercase tracking-tight">
-            <Calendar size={12} className="text-green-600" /> {data.tanggal} · {data.jam}
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-gray-500">
-            <MapPin size={12} className="text-green-600 shrink-0" /> <span className="line-clamp-1">{data.lokasi}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-gray-500 italic">
-            <Users size={12} className="text-green-600 shrink-0" /> {data.peserta} Peserta {data.hadir > 0 && `· ${data.hadir} Hadir`}
-          </div>
-        </div>
-      </div>
-      <div className="p-3 bg-gray-50/50 flex items-center justify-between border-t border-gray-100">
-          <span className="text-[9px] font-black uppercase tracking-widest bg-white border border-gray-200 text-gray-400 px-2.5 py-1 rounded-full">
-            {data.metode}
-          </span>
-          <button 
-            onClick={onOpenDetail}
-            className="bg-white hover:bg-green-600 text-green-600 hover:text-white border border-green-200 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-sm shadow-green-50 uppercase tracking-wider"
-          >
-            {data.status === 'selesai' ? 'Laporan' : 'Kelola'}
-          </button>
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const styles = {
-    mendatang: "bg-blue-50 text-blue-700 border-blue-100",
-    berlangsung: "bg-amber-50 text-amber-700 border-amber-100",
-    selesai: "bg-gray-100 text-gray-500 border-gray-200",
-  };
-  return (
-    <span className={`text-[9px] font-bold px-2 py-0.5 border rounded-full flex items-center gap-1.5 uppercase tracking-tighter shrink-0 ${styles[status]}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${status === 'mendatang' ? 'bg-blue-600' : status === 'berlangsung' ? 'bg-amber-500 animate-pulse' : 'bg-gray-400'}`}></span>
-      {status}
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:'5px',
+      background: s.bg, color: s.color,
+      fontSize:'10px', fontWeight:700, padding:'3px 8px',
+      borderRadius:'99px', letterSpacing:'0.03em', textTransform:'uppercase',
+      whiteSpace:'nowrap',
+    }}>
+      <span style={{width:'5px', height:'5px', borderRadius:'50%', background: s.color, flexShrink:0}}/>
+      {s.label}
     </span>
   );
-}
-
-function StepItem({ num, label, active, done }) {
-  return (
-    <div className={`flex items-center gap-2 shrink-0 ${active ? 'text-gray-900' : done ? 'text-green-600' : 'text-gray-400'}`}>
-      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-colors ${
-        active ? 'border-gray-900 bg-gray-900 text-white shadow-lg' : done ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300 bg-white'
-      }`}>
-        {done ? '✓' : num}
-      </div>
-      <span className={`text-xs font-semibold ${active ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
-    </div>
-  );
-}
-
-function MetodeCard({ title, desc, icon, selected, onClick }) {
-  return (
-    <div 
-      onClick={onClick}
-      className={`p-3 border-2 rounded-xl text-center cursor-pointer transition-all ${
-        selected ? 'border-green-600 bg-green-50 shadow-lg shadow-green-900/5 scale-[1.02]' : 'border-gray-100 hover:border-gray-200 bg-white'
-      }`}
-    >
-      <div className="flex justify-center mb-2 transition-transform">{icon}</div>
-      <h5 className="text-[11px] font-bold text-gray-700 uppercase tracking-tighter">{title}</h5>
-      <p className="text-[9px] text-gray-400 mt-1 leading-tight font-medium uppercase tracking-widest">{desc}</p>
-    </div>
-  );
-}
+};

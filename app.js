@@ -8,9 +8,9 @@ console.log(process.env);
 require("./db/initDB");
 
 const userRoutes = require("./routes/userRoutes");
-const attendanceRoutes = require("./routes/attendanceRoutes"); // ← khusus User
-// PERBAIKAN: Import route khusus Admin
+const attendanceRoutes = require("./routes/attendanceRoutes");
 const adminAttendanceRoutes = require("./routes/adminAttendanceRoutes"); 
+const activityRoutes = require("./routes/activityRoutes");
 
 const app = express();
 
@@ -20,11 +20,10 @@ app.use(express.json());
 // Route untuk User
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
-
-// PERBAIKAN: Daftarkan route khusus Admin
 app.use("/api/admin/attendance", adminAttendanceRoutes);
+app.use("/api/activities", activityRoutes);
 
-// PERBAIKAN: Tambahkan route dasar /api agar tidak muncul "Cannot GET /api/"
+
 app.get("/api", (req, res) => {
   res.json({
     status: "success",
@@ -33,8 +32,6 @@ app.get("/api", (req, res) => {
   });
 });
 
-// PERBAIKAN: Gunakan satu app.listen saja. 
-// Mendengarkan di '0.0.0.0' sangat penting agar bisa diakses via IP Laptop (oleh HP/perangkat lain).
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
