@@ -30,6 +30,8 @@ const GLOBAL_CSS = `
 .kg-btn-primary:disabled { background:#9ca3af; cursor:not-allowed; opacity: 0.7; }
 .kg-btn-outline { height:34px; padding:0 14px; background:transparent; color:var(--text); border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
 .kg-btn-danger { height:34px; padding:0 14px; background:#fef2f2; color:#ef4444; border:1px solid #fecaca; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.kg-btn-danger-solid { height:36px; padding:0 16px; background:#ef4444; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:background .15s; }
+.kg-btn-danger-solid:hover { background:#dc2626; }
 .kg-btn-edit { height:34px; padding:0 10px; background:#f0fdf4; color:var(--g700); border:1px solid var(--g200); border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
 
 .kg-content { padding:24px 28px; display:flex; flex-direction:column; gap:24px; overflow-y: auto; }
@@ -136,7 +138,6 @@ const GLOBAL_CSS = `
 .kg-radius-input:focus { outline: none; border-color: var(--g400); box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
 .kg-radius-input:disabled { background: #f3f4f6; color: var(--muted); cursor: not-allowed; }
 
-/* ── Manual coord inputs ── */
 .kg-coord-row { display: flex; gap: 8px; align-items: flex-end; }
 .kg-coord-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
 .kg-coord-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
@@ -184,12 +185,18 @@ const GLOBAL_CSS = `
 .kg-drawer-dt-chip .time-badge { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
 .kg-drawer-dt-chip.start .time-badge { background: var(--g50); color: var(--g700); }
 .kg-drawer-dt-chip.end .time-badge { background: #fffbeb; color: #92400e; }
+
+/* ── Confirm Delete Modal ── */
+.kg-confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:7000; display:flex; align-items:center; justify-content:center; padding:20px; animation: kg-fade-in .15s ease; }
+.kg-confirm-modal { background:var(--white); border-radius:20px; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden; animation: kg-qr-pop .2s cubic-bezier(.34,1.56,.64,1); }
+.kg-confirm-icon-wrap { width:56px; height:56px; border-radius:50%; background:#fef2f2; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; }
+@keyframes kg-fade-in { from { opacity:0; } to { opacity:1; } }
 `;
 
 import {
   Plus, Search, X, Calendar, MapPin, Users, LayoutGrid, Clock,
   CheckCircle, Trash2, Download, FileSpreadsheet, Edit3, RefreshCw, Camera,
-  UserCheck, UserX, Navigation
+  UserCheck, UserX, Navigation, AlertTriangle
 } from "lucide-react";
 
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -271,6 +278,9 @@ export default function ManajemenKegiatan() {
   const [editingStatus, setEditingStatus] = useState(null);
   const [formErrors, setFormErrors] = useState({});
 
+  // ── State konfirmasi hapus ────────────────────────────────────────────────
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, title }
+
   const todayStr = toLocalDateString(new Date());
 
   const [form, setForm] = useState({
@@ -280,7 +290,6 @@ export default function ManajemenKegiatan() {
     lokasi: "", radius: 100, lat: -0.9471, lng: 100.4172
   });
 
-  // ── State untuk input koordinat manual (string sementara) ────────────────
   const [coordInput, setCoordInput] = useState({ lat: '-0.9471', lng: '100.4172' });
   const [coordError, setCoordError] = useState('');
 
@@ -331,7 +340,6 @@ export default function ManajemenKegiatan() {
     return () => clearInterval(interval);
   }, [detailId]);
 
-  // ── Sync coordInput saat form.lat/lng berubah dari luar (geocode / map click)
   useEffect(() => {
     setCoordInput({
       lat: form.lat.toFixed(6),
@@ -431,8 +439,15 @@ export default function ManajemenKegiatan() {
     return 'selesai';
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus kegiatan ini?")) return;
+  // ── Ganti window.confirm → buka modal konfirmasi ─────────────────────────
+  const handleDeleteClick = (id, title) => {
+    setConfirmDelete({ id, title });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    setConfirmDelete(null);
     try {
       const res = await fetch(`${API}/activities/${id}`, { method: 'DELETE' });
       if (res.ok) setKegiatanList(prev => prev.filter(k => k.id !== id));
@@ -440,10 +455,9 @@ export default function ManajemenKegiatan() {
     } catch (err) { console.error(err); }
   };
 
-  // ── Edit hanya untuk mendatang & berlangsung — selesai tidak bisa diedit ──
   const handleEditOpen = (k) => {
     const status = getStatus(k);
-    if (status === 'selesai') return; // guard tambahan, tombol sudah disembunyikan
+    if (status === 'selesai') return;
     const start = new Date(k.start_datetime);
     const end = new Date(k.end_datetime);
     const padTime = (d) =>
@@ -528,7 +542,6 @@ export default function ManajemenKegiatan() {
     finally { setReverseLoading(false); }
   }, [moveMarkerAndCircle, formErrors.lokasi]);
 
-  // ── Terapkan input koordinat manual ke peta ───────────────────────────────
   const handleApplyCoord = () => {
     const latStr = coordInput.lat.trim();
     const lngStr = coordInput.lng.trim();
@@ -541,7 +554,6 @@ export default function ManajemenKegiatan() {
     const lng = parseFloat(lngStr);
     setForm(prev => ({ ...prev, lat, lng }));
     moveMarkerAndCircle(lat, lng);
-    // Reverse geocode otomatis
     setReverseLoading(true);
     reverseGeocode(lat, lng).then(data => {
       const nama = formatReverseResult(data);
@@ -554,7 +566,6 @@ export default function ManajemenKegiatan() {
     }).catch(console.error).finally(() => setReverseLoading(false));
   };
 
-  // ── Tangani Enter pada input koordinat ───────────────────────────────────
   const handleCoordKeyDown = (e) => {
     if (e.key === 'Enter') handleApplyCoord();
   };
@@ -856,16 +867,15 @@ export default function ManajemenKegiatan() {
                             Kelola Absensi
                           </button>
 
-                          {/* ── Tombol Edit: hanya untuk mendatang & berlangsung ── */}
                           {s !== 'selesai' && (
                             <button className="kg-btn-edit" onClick={() => handleEditOpen(k)} title="Edit Kegiatan">
                               <Edit3 size={16}/>
                             </button>
                           )}
 
-                          {/* ── Hapus: hanya untuk mendatang ── */}
+                          {/* ── Tombol hapus sekarang panggil handleDeleteClick ── */}
                           {s === 'mendatang' && (
-                            <button className="kg-btn-danger" onClick={() => handleDelete(k.id)} title="Hapus Kegiatan">
+                            <button className="kg-btn-danger" onClick={() => handleDeleteClick(k.id, k.title)} title="Hapus Kegiatan">
                               <Trash2 size={16}/>
                             </button>
                           )}
@@ -914,7 +924,6 @@ export default function ManajemenKegiatan() {
               <div style={{padding:'24px'}}>
                 {currentStep === 1 ? (
                   <div className="kg-form-grid">
-                    {/* Nama */}
                     <div className="kg-form-group full">
                       <label className="kg-form-label">Nama Kegiatan *</label>
                       <input className={`kg-form-input ${formErrors.nama ? 'error' : ''}`} placeholder="Masukkan nama kegiatan..." maxLength={50} value={form.nama} onChange={(e) => { setForm({...form, nama: e.target.value}); if (formErrors.nama) setFormErrors(p => ({...p, nama: null})); }} />
@@ -924,7 +933,6 @@ export default function ManajemenKegiatan() {
                       </div>
                     </div>
 
-                    {/* Deskripsi */}
                     <div className="kg-form-group full">
                       <label className="kg-form-label">Deskripsi <span style={{fontWeight:400, textTransform:'none', fontSize:'11px', color:'var(--muted)'}}>— opsional</span></label>
                       <textarea className={`kg-form-input ${formErrors.desc ? 'error' : ''}`} style={{height:'80px', padding:'10px', resize:'vertical'}} placeholder="Deskripsi singkat kegiatan (opsional)..." maxLength={150} value={form.desc} onChange={(e) => { setForm({...form, desc: e.target.value}); if (formErrors.desc) setFormErrors(p => ({...p, desc: null})); }} />
@@ -934,7 +942,6 @@ export default function ManajemenKegiatan() {
                       </div>
                     </div>
 
-                    {/* Tanggal & Jam Mulai */}
                     <div className="kg-form-group">
                       <label className="kg-form-label" style={{display:'flex', alignItems:'center', gap:'6px'}}>
                         Tanggal Mulai *
@@ -965,7 +972,6 @@ export default function ManajemenKegiatan() {
                       {formErrors.jamMulai && <span className="kg-field-error">{formErrors.jamMulai}</span>}
                     </div>
 
-                    {/* Tanggal & Jam Selesai */}
                     <div className="kg-form-group">
                       <label className="kg-form-label">Tanggal Selesai *</label>
                       <input type="date" className={`kg-form-input ${formErrors.tglSelesai ? 'error' : ''}`} min={minTglSelesai} value={form.tglSelesai}
@@ -983,7 +989,6 @@ export default function ManajemenKegiatan() {
                   </div>
                 ) : (
                   <div>
-                    {/* Geocode search */}
                     <div className="kg-form-group" style={{marginBottom:'10px'}}>
                       <label className="kg-form-label">
                         Cari Lokasi{' '}
@@ -1019,7 +1024,6 @@ export default function ManajemenKegiatan() {
                       </div>
                     </div>
 
-                    {/* Nama lokasi */}
                     <div className="kg-form-group" style={{marginBottom:'10px'}}>
                       <label className="kg-form-label">
                         Nama Lokasi *{' '}
@@ -1034,7 +1038,6 @@ export default function ManajemenKegiatan() {
                       {formErrors.lokasi && <span className="kg-field-error" style={{marginTop:'4px'}}>{formErrors.lokasi}</span>}
                     </div>
 
-                    {/* ── Input koordinat manual ── */}
                     <div style={{marginBottom:'8px'}}>
                       <div style={{fontSize:'10px', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'6px', display:'flex', alignItems:'center', gap:'6px'}}>
                         <Navigation size={11}/> Input Koordinat Manual
@@ -1070,13 +1073,11 @@ export default function ManajemenKegiatan() {
                       )}
                     </div>
 
-                    {/* Peta */}
                     <div style={{position:'relative'}}>
                       <div id="kg-leaflet-map" ref={mapRef}></div>
                       {reverseToast && <div className="kg-reverse-toast">📍 Nama lokasi diperbarui otomatis</div>}
                     </div>
 
-                    {/* Meta: coords + radius */}
                     <div className="kg-map-meta">
                       <div className="kg-map-coords">
                         <MapPin size={12} style={{display:'inline', marginRight:'4px', verticalAlign:'middle'}}/>
@@ -1350,6 +1351,43 @@ export default function ManajemenKegiatan() {
               <div style={{padding:'12px 20px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0}}>
                 <span style={{fontSize:'12px', color:'var(--muted)'}}>{filteredMemberModalData.length} anggota ditampilkan</span>
                 <button className="kg-btn-outline" style={{height:'30px', fontSize:'12px'}} onClick={() => setMemberModal(null)}><X size={14}/> Tutup</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL KONFIRMASI HAPUS ────────────────────────────────────────── */}
+        {confirmDelete && (
+          <div className="kg-confirm-overlay" onClick={() => setConfirmDelete(null)}>
+            <div className="kg-confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div style={{padding:'32px 28px 24px', textAlign:'center'}}>
+                <div className="kg-confirm-icon-wrap">
+                  <AlertTriangle size={26} color="#ef4444" />
+                </div>
+                <div style={{fontSize:'17px', fontWeight:800, color:'var(--text)', marginBottom:'8px'}}>
+                  Hapus Kegiatan?
+                </div>
+                <div style={{fontSize:'13px', color:'var(--muted)', lineHeight:1.6}}>
+                  Kegiatan{' '}
+                  <span style={{fontWeight:700, color:'var(--text)'}}>"{confirmDelete.title}"</span>{' '}
+                  akan dihapus secara permanen dan tidak dapat dikembalikan.
+                </div>
+              </div>
+              <div style={{padding:'0 28px 24px', display:'flex', gap:'10px'}}>
+                <button
+                  className="kg-btn-outline"
+                  style={{flex:1, justifyContent:'center', height:'40px'}}
+                  onClick={() => setConfirmDelete(null)}
+                >
+                  Batal
+                </button>
+                <button
+                  className="kg-btn-danger-solid"
+                  style={{flex:1, justifyContent:'center', height:'40px'}}
+                  onClick={handleDeleteConfirm}
+                >
+                  <Trash2 size={15}/> Ya, Hapus
+                </button>
               </div>
             </div>
           </div>
