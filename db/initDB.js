@@ -249,13 +249,13 @@ connection.connect(async (err) => {
           const defaultRoles = [
             {
               name:        "superadmin",
-              label:       "Super Administrator",
+              label:       "SuperAdmin",
               description: "Akses penuh ke seluruh sistem termasuk kelola role & periode",
               is_system:   true,
             },
             {
               name:        "admin",
-              label:       "Administrator",
+              label:       "Admin",
               description: "Hak akses dikonfigurasi dinamis oleh superadmin",
               is_system:   true,
             },

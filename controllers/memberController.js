@@ -85,11 +85,10 @@ exports.createMember = async (req, res) => {
   const {
     name, nim, username, password,
     jabatan, kementerian,
-    role,       // nama role: "user" | "admin" | "superadmin" | nama role custom
+    role,
     period_id,
   } = req.body;
 
-  // Validasi field wajib
   if (!name || !nim || !username || !password || !jabatan) {
     return res.status(400).json({
       message: "Field name, nim, username, password, dan jabatan wajib diisi",
@@ -100,13 +99,9 @@ exports.createMember = async (req, res) => {
   }
 
   try {
-    // 1. Resolve role name → role_id
     const roleId = await getRoleId(role || "user");
-
-    // 2. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Insert ke tabel users
     db.query(
       `INSERT INTO users (name, nim, username, password, must_change_password)
        VALUES (?, ?, ?, ?, FALSE)`,
@@ -120,27 +115,21 @@ exports.createMember = async (req, res) => {
 
         const newUserId = result.insertId;
 
-        // 4. Insert ke tabel user_periods (pakai role_id)
         db.query(
           `INSERT INTO user_periods (user_id, period_id, role_id, jabatan, kementerian, is_active)
            VALUES (?, ?, ?, ?, ?, TRUE)`,
           [newUserId, period_id, roleId, jabatan, kementerian || null],
           (err2) => {
             if (err2) {
-              // Rollback: hapus user yang baru dibuat
               db.query(`DELETE FROM users WHERE id = ?`, [newUserId]);
               return res.status(500).json({ message: "Gagal menyimpan data periode anggota", error: err2 });
             }
-            res.status(201).json({
-              message: "Anggota berhasil ditambahkan",
-              id:      newUserId,
-            });
+            res.status(201).json({ message: "Anggota berhasil ditambahkan", id: newUserId });
           }
         );
       }
     );
   } catch (err) {
-    // Error dari getRoleId atau bcrypt
     if (err.message.startsWith("Role")) return res.status(400).json({ message: err.message });
     res.status(500).json({ message: "Terjadi kesalahan server", error: err.message });
   }
@@ -152,24 +141,18 @@ exports.updateMember = async (req, res) => {
   const {
     name, nim, username, password,
     jabatan, kementerian,
-    role,
-    is_active,
-    period_id,
+    role, is_active, period_id,
   } = req.body;
 
   const activeValue = typeof is_active !== "undefined" ? (is_active ? 1 : 0) : 1;
 
   try {
-    // 1. Resolve role name → role_id
     const roleId = await getRoleId(role || "user");
 
-    // 2. Update tabel users
     if (password && password.trim() !== "") {
       const hashedPassword = await bcrypt.hash(password, 10);
       const [result] = await db.promise().query(
-        `UPDATE users
-         SET name=?, nim=?, username=?, password=?, must_change_password=FALSE, updated_at=NOW()
-         WHERE id=?`,
+        `UPDATE users SET name=?, nim=?, username=?, password=?, must_change_password=FALSE, updated_at=NOW() WHERE id=?`,
         [name, nim, username, hashedPassword, id]
       );
       if (result.affectedRows === 0)
@@ -183,7 +166,6 @@ exports.updateMember = async (req, res) => {
         return res.status(404).json({ message: "Anggota tidak ditemukan" });
     }
 
-    // 3. Update tabel user_periods (pakai role_id)
     if (period_id) {
       const [upResult] = await db.promise().query(
         `UPDATE user_periods
@@ -191,8 +173,6 @@ exports.updateMember = async (req, res) => {
          WHERE user_id=? AND period_id=?`,
         [jabatan, kementerian || null, roleId, activeValue, id, period_id]
       );
-
-      // Jika belum ada entry untuk periode ini, buat baru
       if (upResult.affectedRows === 0) {
         await db.promise().query(
           `INSERT INTO user_periods (user_id, period_id, role_id, jabatan, kementerian, is_active)
@@ -203,7 +183,6 @@ exports.updateMember = async (req, res) => {
     }
 
     res.json({ message: "Data anggota berhasil diperbarui" });
-
   } catch (err) {
     if (err.message.startsWith("Role"))
       return res.status(400).json({ message: err.message });
@@ -213,7 +192,86 @@ exports.updateMember = async (req, res) => {
   }
 };
 
-// ─── TOGGLE Status Aktif (di user_periods) ───────────────────────────────────
+// ─── BULK NONAKTIFKAN (superadmin dikecualikan) ───────────────────────────────
+// POST /members/bulk-deactivate
+// body: { period_id }
+exports.bulkDeactivate = (req, res) => {
+  const { period_id } = req.body;
+  if (!period_id) return res.status(400).json({ message: "period_id wajib diisi" });
+
+  db.query(
+    `UPDATE user_periods up
+     INNER JOIN roles r ON r.id = up.role_id
+     SET up.is_active = 0, up.updated_at = NOW()
+     WHERE up.period_id = ? AND r.name != 'superadmin'`,
+    [period_id],
+    (err, result) => {
+      if (err) return res.status(500).json({ message: "Gagal menonaktifkan anggota", error: err });
+      res.json({
+        message: `${result.affectedRows} anggota berhasil dinonaktifkan (superadmin dikecualikan)`,
+        affected: result.affectedRows,
+      });
+    }
+  );
+};
+
+// ─── SALIN anggota ke periode baru ───────────────────────────────────────────
+// POST /members/copy-to-period
+// body: { from_period_id, to_period_id, user_ids[] (opsional, kosong = salin semua) }
+exports.copyToPeriod = async (req, res) => {
+  const { from_period_id, to_period_id, user_ids } = req.body;
+
+  if (!from_period_id || !to_period_id) {
+    return res.status(400).json({ message: "from_period_id dan to_period_id wajib diisi" });
+  }
+  if (String(from_period_id) === String(to_period_id)) {
+    return res.status(400).json({ message: "Periode asal dan tujuan tidak boleh sama" });
+  }
+
+  try {
+    let query = `SELECT user_id, role_id FROM user_periods WHERE period_id = ?`;
+    const params = [from_period_id];
+
+    if (user_ids && user_ids.length > 0) {
+      query += ` AND user_id IN (?)`;
+      params.push(user_ids);
+    }
+
+    const [rows] = await db.promise().query(query, params);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Tidak ada anggota ditemukan di periode asal" });
+    }
+
+    const [defaultRole] = await db.promise().query(
+      `SELECT id FROM roles WHERE name = 'user' LIMIT 1`
+    );
+    const defaultRoleId = defaultRole[0]?.id ?? 1;
+
+    let skipped = 0;
+    let inserted = 0;
+
+    for (const row of rows) {
+      const [result] = await db.promise().query(
+        `INSERT IGNORE INTO user_periods
+           (user_id, period_id, role_id, jabatan, kementerian, is_active)
+         VALUES (?, ?, ?, ?, ?, TRUE)`,
+        [row.user_id, to_period_id, defaultRoleId, "Staff Ahli", null]
+      );
+      if (result.affectedRows === 0) skipped++;
+      else inserted++;
+    }
+
+    res.json({
+      message: `${inserted} anggota berhasil disalin ke periode baru${skipped > 0 ? `, ${skipped} dilewati (sudah ada)` : ""}`,
+      inserted,
+      skipped,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Terjadi kesalahan server", error: err.message });
+  }
+};
+
+// ─── TOGGLE Status Aktif individual ──────────────────────────────────────────
 exports.toggleStatus = (req, res) => {
   const { id } = req.params;
   const { period_id } = req.body;
