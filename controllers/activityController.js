@@ -91,6 +91,7 @@ exports.createActivity = (req, res) => {
         const activityId = result.insertId;
 
         // Otomatis mendaftarkan peserta yang dipilih (atau semua dari frontend)
+        // Status default = 'tidak_hadir' yang berarti ALFA — belum melakukan absen
         if (participant_ids && participant_ids.length > 0) {
             const attendanceValues = participant_ids.map(uid => [activityId, uid, 'tidak_hadir']);
             db.query(`INSERT INTO activity_attendance (activity_id, user_id, status) VALUES ?`, [attendanceValues], (err2) => {
@@ -102,21 +103,35 @@ exports.createActivity = (req, res) => {
     });
 };
 
-// 3. Update kegiatan (Untuk fitur Edit pada status 'mendatang')
+// 3. Update kegiatan — mendukung edit untuk status mendatang, berlangsung, dan selesai
+// Perbedaan utama dari create:
+//   - Tidak ada validasi "start_datetime tidak boleh sebelum hari ini"
+//     karena kegiatan yang sudah berlangsung/selesai pasti sudah lewat hari ini.
+//   - Validasi end_datetime >= start_datetime tetap berlaku.
+//   - Koordinat (latitude, longitude) dapat diubah untuk mendatang & berlangsung,
+//     tetapi frontend sudah mengunci field ini untuk status 'selesai'.
 exports.updateActivity = (req, res) => {
     const { id } = req.params;
-    const { title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime } = req.body;
+    const {
+        title, description, location_name,
+        latitude, longitude, radius_meters,
+        start_datetime, end_datetime
+    } = req.body;
 
-    // ── VALIDASI SAMA SEPERTI CREATE ────────────────────────────────────────
+    // ── VALIDASI: Nama Kegiatan ─────────────────────────────────────────────
     if (!title || title.trim() === "") {
         return res.status(400).json({ message: "Nama kegiatan wajib diisi." });
     }
     if (title.trim().length > 50) {
         return res.status(400).json({ message: "Nama kegiatan maksimal 50 karakter." });
     }
+
+    // ── VALIDASI: Deskripsi ─────────────────────────────────────────────────
     if (description && description.trim().length > 150) {
         return res.status(400).json({ message: "Deskripsi maksimal 150 karakter." });
     }
+
+    // ── VALIDASI: Tanggal ───────────────────────────────────────────────────
     if (!start_datetime || !end_datetime) {
         return res.status(400).json({ message: "Tanggal mulai dan selesai wajib diisi." });
     }
@@ -127,14 +142,20 @@ exports.updateActivity = (req, res) => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({ message: "Format tanggal tidak valid." });
     }
+
+    // CATATAN: Sengaja tidak memvalidasi startDate >= today di sini,
+    // karena saat edit kegiatan berlangsung/selesai, tanggal mulai dikirim
+    // apa adanya (sudah lewat) dari frontend yang mengunci field tersebut.
     if (endDate < startDate) {
         return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
     }
+
+    // ── VALIDASI: Nama Lokasi ───────────────────────────────────────────────
     if (!location_name || location_name.trim() === "") {
         return res.status(400).json({ message: "Nama lokasi wajib diisi." });
     }
 
-    // ── VALIDASI KOORDINAT ─────────────────────────────────────────────────
+    // ── VALIDASI: Koordinat ─────────────────────────────────────────────────
     if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
         return res.status(400).json({ message: "Koordinat lokasi wajib ditentukan." });
     }
@@ -160,7 +181,7 @@ exports.updateActivity = (req, res) => {
     db.query(query, values, (err, result) => {
         if (err) return res.status(500).json({ message: "Gagal memperbarui kegiatan", error: err });
         if (result.affectedRows === 0) return res.status(404).json({ message: "Kegiatan tidak ditemukan" });
-        
+
         res.json({ message: "Kegiatan berhasil diperbarui" });
     });
 };
@@ -179,6 +200,10 @@ exports.deleteActivity = (req, res) => {
 };
 
 // 5. Ambil detail absensi per kegiatan (Untuk Panel Kelola Absensi / Drawer)
+// Logika alfa:
+//   - status = 'hadir'         → staf sudah melakukan absen (hadir)
+//   - status = 'tidak_hadir'   → staf BELUM / TIDAK melakukan absen (alfa)
+// Ini sesuai dengan defaultnya saat peserta didaftarkan di createActivity.
 exports.getActivityAttendance = (req, res) => {
     const { id } = req.params;
 
@@ -187,7 +212,8 @@ exports.getActivityAttendance = (req, res) => {
             u.name, 
             u.kementerian, 
             aa.status, 
-            aa.check_in_time 
+            aa.check_in_time,
+            aa.selfie_photo
         FROM activity_attendance aa
         JOIN users u ON aa.user_id = u.id
         WHERE aa.activity_id = ?
