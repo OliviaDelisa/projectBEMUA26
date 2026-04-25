@@ -20,9 +20,10 @@ const menus = [
     label: "Manajemen Absensi",
     children: [
       { label: "Dashboard", path: "/dashboard" },
-      { label: "Absensi",   path: "/absensi"   },
-      { label: "Kegiatan",  path: "/kegiatan"  },
-      { label: "Piket",     path: "/piket"     },
+      { label: "Manajemen Absensi", path: "/absensi" }, 
+      { label: "Absensi Kegiatan", path: "/kegiatan" },
+      { label: "Piket", path: "/piket" }
+
     ],
   },
   {

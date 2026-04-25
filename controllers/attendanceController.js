@@ -4,6 +4,14 @@ const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
 const RADIUS_METER = 2000;
 
+// ── Helper: format tanggal lokal (WIB) tanpa terpengaruh UTC ────
+function getLocalDateString(date = new Date()) {
+  const year  = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day   = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R     = 6371000;
   const toRad = (d) => (d * Math.PI) / 180;
@@ -19,7 +27,8 @@ function hitungJarak(lat1, lng1, lat2, lng2) {
 // GET /attendance/home/:user_id
 exports.getHomeData = (req, res) => {
   const { user_id } = req.params;
-  const today = new Date().toISOString().split("T")[0];
+  // FIX: pakai getLocalDateString agar tidak bergeser timezone
+  const today = getLocalDateString();
 
   db.query(
     "SELECT * FROM secretariat_attendance WHERE user_id = ? AND date = ?",
@@ -42,8 +51,6 @@ exports.getHomeData = (req, res) => {
         (err, activities) => {
           if (err) return res.status(500).json({ message: "Server error" });
 
-          // ── FIX: duty_schedules join melalui user_periods (bukan users.kementerian) ──
-          // user_periods menyimpan kementerian untuk periode aktif
           db.query(
             `SELECT ds.*
              FROM duty_schedules ds
@@ -161,9 +168,9 @@ exports.checkInSecretariat = (req, res) => {
     });
   }
 
-  const today = now.toISOString().split("T")[0];
+  // FIX: pakai getLocalDateString agar tanggal tersimpan sesuai WIB, bukan UTC
+  const today = getLocalDateString(now);
 
-  // ── FIX: ambil period_id aktif dari tabel periods (bukan dari body) ──
   db.query(
     `SELECT id FROM periods WHERE is_active = TRUE LIMIT 1`,
     [],
