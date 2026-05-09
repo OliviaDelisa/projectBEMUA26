@@ -2,7 +2,7 @@ const db = require("../db/db");
 
 const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
-const RADIUS_METER = 20000;
+const RADIUS_METER = 50;
 
 // ── Helper: format tanggal lokal (WIB) tanpa terpengaruh UTC ────
 function getLocalDateString(date = new Date()) {

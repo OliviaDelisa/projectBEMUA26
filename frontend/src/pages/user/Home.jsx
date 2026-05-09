@@ -4,7 +4,7 @@ import API from "../../config/api";
 
 const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
-const RADIUS_METER = 20000;
+const RADIUS_METER = 50;
 
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
