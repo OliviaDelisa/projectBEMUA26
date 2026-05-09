@@ -1,3 +1,3 @@
-const API = "http://10.61.203.64/api";
+const API = "https://ghostwhite-hippopotamus-334963.hostingersite.com/api";
 
-export default API; 
+export default API;
