@@ -1,9 +1,10 @@
 {
   "name": "webbemunand",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "build": "cd frontend && npm install && npm run build",
     "dev": "concurrently \"node app.js\" \"cd frontend && npm run dev\""
   },
   "keywords": [],
@@ -11,7 +12,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "axios": "^1.15.1",
+    "axios": "^1.15.2",
     "bcrypt": "^6.0.0",
     "chart.js": "^4.5.1",
     "concurrently": "^9.2.1",

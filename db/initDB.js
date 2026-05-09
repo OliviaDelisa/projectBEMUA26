@@ -1,7 +1,9 @@
 const mysql = require("mysql2");
-require("dotenv").config();
 const bcrypt = require("bcrypt");
+require("dotenv").config();
 
+// Koneksi sementara khusus untuk setup (bukan pool)
+// Karena kita perlu CREATE DATABASE dulu sebelum pilih database-nya
 const connection = mysql.createConnection({
   host:     process.env.DB_HOST,
   user:     process.env.DB_USER,
@@ -164,7 +166,7 @@ connection.connect(async (err) => {
         CREATE TABLE IF NOT EXISTS duty_schedules (
           id          INT AUTO_INCREMENT PRIMARY KEY,
           kementerian VARCHAR(100) NOT NULL,
-          menko       VARCHAR(100) DEFAULT NULL,
+          menko        VARCHAR(100) NOT NULL,
           duty_date   DATE         NOT NULL,
           period_id   INT          DEFAULT NULL,
           created_by  INT          DEFAULT NULL,

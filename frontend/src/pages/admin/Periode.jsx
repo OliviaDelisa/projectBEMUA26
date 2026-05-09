@@ -11,6 +11,7 @@ function Periode() {
   const [error, setError]           = useState(null);
   const [showForm, setShowForm]     = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [activating, setActivating] = useState(null); // id yang sedang diproses
 
   const [formName,      setFormName]      = useState("");
   const [formStartDate, setFormStartDate] = useState("");
@@ -51,10 +52,13 @@ function Periode() {
     setShowForm(true);
   };
 
-  // ─── Aktifkan — satu-satunya cara mengubah periode aktif ─────────────────
+  // ─── Jadikan Aktif — backend otomatis non-aktifkan yang lain ─────────────
   const handleSetActive = async (id) => {
+    setActivating(id);
     try {
-      const res = await fetch(`${API}/periode/${id}/activate`, { method: "PATCH" });
+      const res = await fetch(`${API}/periode/${id}/activate`, {
+        method: "PATCH",
+      });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "Gagal mengaktifkan periode");
@@ -62,11 +66,12 @@ function Periode() {
       await fetchPeriods();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setActivating(null);
     }
   };
 
   // ─── Simpan (Create / Update) ─────────────────────────────────────────────
-  // is_active TIDAK dikirim — backend yang mengontrol
   const handleSave = async (e) => {
     e.preventDefault();
     if (formEndDate < formStartDate) {
@@ -77,7 +82,6 @@ function Periode() {
       name:       formName,
       start_date: formStartDate,
       end_date:   formEndDate,
-      // is_active sengaja tidak dikirim
     };
     try {
       const url    = editTarget !== null ? `${API}/periode/${editTarget}` : `${API}/periode`;
@@ -101,7 +105,12 @@ function Periode() {
 
   // ─── Hapus ────────────────────────────────────────────────────────────────
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Hapus periode "${name}"? Data anggota terkait periode ini akan terpengaruh.`)) return;
+    if (
+      !window.confirm(
+        `Hapus periode "${name}"? Data anggota terkait periode ini akan terpengaruh.`
+      )
+    )
+      return;
     try {
       const res = await fetch(`${API}/periode/${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -122,7 +131,10 @@ function Periode() {
     });
   };
 
-  const activeCount   = periods.filter(p => p.is_active === 1 || p.is_active === true).length;
+ // SESUDAH
+  const isActive = (p) => Number(p.is_active) === 1;
+  const activePeriod  = periods.find(isActive);
+  const activeCount   = activePeriod ? 1 : 0;
   const inactiveCount = periods.length - activeCount;
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -130,25 +142,52 @@ function Periode() {
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar title="Manajemen Periode" subtitle="Kelola periode kepengurusan BEM KM UNAND" />
+        <Topbar
+          title="Manajemen Periode"
+          subtitle="Kelola periode kepengurusan BEM KM UNAND"
+        />
 
         <main className="flex-1 overflow-y-auto p-8">
 
           {/* STATS */}
           {!showForm && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4"
-                style={{ borderLeftColor: UNAND_GREEN }}>
-                <span className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: UNAND_GREEN }}>Total Periode</span>
-                <span className="text-2xl font-bold text-gray-800">{periods.length}</span>
+              <div
+                className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4"
+                style={{ borderLeftColor: UNAND_GREEN }}
+              >
+                <span
+                  className="text-[10px] font-black uppercase tracking-widest mb-1"
+                  style={{ color: UNAND_GREEN }}
+                >
+                  Total Periode
+                </span>
+                <span className="text-2xl font-bold text-gray-800">
+                  {periods.length}
+                </span>
               </div>
+
               <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4 border-l-green-400">
-                <span className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Aktif</span>
-                <span className="text-2xl font-bold text-gray-800">{activeCount}</span>
+                <span className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">
+                  Aktif
+                </span>
+                <span className="text-2xl font-bold text-gray-800">
+                  {activeCount} / 1
+                </span>
+                {activePeriod && (
+                  <span className="text-[10px] text-gray-400 mt-0.5 truncate">
+                    {activePeriod.name}
+                  </span>
+                )}
               </div>
+
               <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4 border-l-gray-300">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Non-Aktif</span>
-                <span className="text-2xl font-bold text-gray-800">{inactiveCount}</span>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                  Non-Aktif
+                </span>
+                <span className="text-2xl font-bold text-gray-800">
+                  {inactiveCount}
+                </span>
               </div>
             </div>
           )}
@@ -160,29 +199,37 @@ function Periode() {
             </div>
           )}
 
-          {/* FORM — hanya nama & tanggal, tidak ada toggle status */}
+          {/* FORM */}
           {showForm ? (
             <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 max-w-xl mx-auto">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold" style={{ color: UNAND_GREEN }}>
                   {editTarget !== null ? "Edit Periode" : "Tambah Periode Baru"}
                 </h2>
-                <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-sm">Batal</button>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="text-gray-400 hover:text-gray-600 text-sm"
+                >
+                  Batal
+                </button>
               </div>
 
-              {/* Info: periode baru selalu non-aktif */}
               {editTarget === null && (
                 <div className="mb-5 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700 font-medium">
-                  ℹ Periode baru akan disimpan sebagai <strong>Non-Aktif</strong>. Gunakan tombol <strong>"Jadikan Aktif"</strong> untuk mengaktifkannya.
+                  ℹ Periode baru akan disimpan sebagai{" "}
+                  <strong>Non-Aktif</strong>. Gunakan tombol{" "}
+                  <strong>"Jadikan Aktif"</strong> pada daftar untuk mengaktifkannya.
                 </div>
               )}
 
               <form onSubmit={handleSave} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Nama Periode</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Nama Periode
+                  </label>
                   <input
                     value={formName}
-                    onChange={e => setFormName(e.target.value)}
+                    onChange={(e) => setFormName(e.target.value)}
                     placeholder="Contoh: Kepengurusan 2026/2027"
                     className="w-full border p-3 rounded-xl outline-none transition focus:border-green-400"
                     required
@@ -191,26 +238,45 @@ function Periode() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Mulai</label>
-                    <input type="date" value={formStartDate} onChange={e => setFormStartDate(e.target.value)}
-                      className="w-full border p-3 rounded-xl outline-none transition focus:border-green-400" required />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Tanggal Mulai
+                    </label>
+                    <input
+                      type="date"
+                      value={formStartDate}
+                      onChange={(e) => setFormStartDate(e.target.value)}
+                      className="w-full border p-3 rounded-xl outline-none transition focus:border-green-400"
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Selesai</label>
-                    <input type="date" value={formEndDate} onChange={e => setFormEndDate(e.target.value)}
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Tanggal Selesai
+                    </label>
+                    <input
+                      type="date"
+                      value={formEndDate}
+                      onChange={(e) => setFormEndDate(e.target.value)}
                       min={formStartDate}
-                      className="w-full border p-3 rounded-xl outline-none transition focus:border-green-400" required />
+                      className="w-full border p-3 rounded-xl outline-none transition focus:border-green-400"
+                      required
+                    />
                   </div>
                 </div>
 
                 <div className="pt-4 flex gap-3">
-                  <button type="submit"
+                  <button
+                    type="submit"
                     className="flex-1 text-white py-3 rounded-xl font-bold hover:opacity-90 transition shadow-lg"
-                    style={{ backgroundColor: UNAND_GREEN }}>
+                    style={{ backgroundColor: UNAND_GREEN }}
+                  >
                     {editTarget !== null ? "Simpan Perubahan" : "Simpan Periode"}
                   </button>
-                  <button type="button" onClick={() => setShowForm(false)}
-                    className="px-6 py-3 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition">
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="px-6 py-3 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition"
+                  >
                     Kembali
                   </button>
                 </div>
@@ -221,9 +287,11 @@ function Periode() {
             <>
               {/* Toolbar */}
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex justify-end">
-                <button onClick={handleOpenAdd}
+                <button
+                  onClick={handleOpenAdd}
                   className="text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition shadow-sm flex items-center gap-2 text-sm"
-                  style={{ backgroundColor: UNAND_GREEN }}>
+                  style={{ backgroundColor: UNAND_GREEN }}
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
@@ -232,33 +300,46 @@ function Periode() {
               </div>
 
               {loading ? (
-                <div className="text-center py-16 text-gray-400 font-medium">Memuat data…</div>
+                <div className="text-center py-16 text-gray-400 font-medium">
+                  Memuat data…
+                </div>
               ) : periods.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-16 text-center text-gray-400 font-medium">
                   Belum ada periode. Tambahkan periode pertama.
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {periods.map(p => {
-                    const isActive = p.is_active === 1 || p.is_active === true;
+                  {periods.map((p) => {
+                    const active = isActive(p);
+                    const isProcessing = activating === p.id;
                     return (
-                      <div key={p.id}
+                      <div
+                        key={p.id}
                         className={`bg-white rounded-2xl shadow-sm border-2 transition p-6 flex items-center justify-between gap-4
-                          ${isActive ? "border-green-300" : "border-gray-100"}`}>
+                          ${active ? "border-green-300" : "border-gray-100"}`}
+                      >
+                        {/* Kiri: info periode */}
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0
-                            ${isActive ? "bg-green-50" : "bg-gray-50"}`}>
-                            <svg xmlns="http://www.w3.org/2000/svg"
-                              className={`w-6 h-6 ${isActive ? "text-green-500" : "text-gray-400"}`}
-                              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0
+                              ${active ? "bg-green-50" : "bg-gray-50"}`}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={`w-6 h-6 ${active ? "text-green-500" : "text-gray-400"}`}
+                              fill="none" viewBox="0 0 24 24"
+                              stroke="currentColor" strokeWidth={1.8}
+                            >
                               <path strokeLinecap="round" strokeLinejoin="round"
                                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </div>
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-gray-800 text-base">{p.name}</h3>
-                              {isActive ? (
+                              <h3 className="font-bold text-gray-800 text-base">
+                                {p.name}
+                              </h3>
+                              {active ? (
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-green-100 text-green-700">
                                   Aktif
                                 </span>
@@ -274,24 +355,38 @@ function Periode() {
                           </div>
                         </div>
 
+                        {/* Kanan: aksi */}
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {/* Tombol "Jadikan Aktif" hanya muncul jika periode non-aktif */}
-                          {!isActive && (
-                            <button onClick={() => handleSetActive(p.id)}
-                              className="px-3 py-1.5 rounded-lg border border-green-300 text-green-700 text-xs font-bold hover:bg-green-50 transition whitespace-nowrap">
-                              Jadikan Aktif
+
+                          {/* Tombol Jadikan Aktif — hanya muncul di periode non-aktif */}
+                          {!active && (
+                            <button
+                              onClick={() => handleSetActive(p.id)}
+                              disabled={isProcessing}
+                              className="px-3 py-1.5 rounded-lg border border-green-300 text-green-700 text-xs font-bold hover:bg-green-50 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? "Memproses…" : "Jadikan Aktif"}
                             </button>
                           )}
-                          <button onClick={() => handleOpenEdit(p)} title="Edit"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition">
+
+                          {/* Tombol Edit */}
+                          <button
+                            onClick={() => handleOpenEdit(p)}
+                            title="Edit"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition"
+                          >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M13.586 3.586a2 2 0 112.828 2.828l-9.193 9.193a2 2 0 01-.707.464l-3 1a1 1 0 01-1.265-1.265l1-3a2 2 0 01.464-.707l9.193-9.193z" />
                             </svg>
                           </button>
-                          {/* Hapus hanya untuk periode non-aktif (backend juga memvalidasi ini) */}
-                          {!isActive && (
-                            <button onClick={() => handleDelete(p.id, p.name)} title="Hapus"
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-red-400 hover:bg-red-50 transition">
+
+                          {/* Tombol Hapus — hanya untuk periode non-aktif */}
+                          {!active && (
+                            <button
+                              onClick={() => handleDelete(p.id, p.name)}
+                              title="Hapus"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-red-400 hover:bg-red-50 transition"
+                            >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 hover:text-red-500" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                               </svg>

@@ -7,6 +7,11 @@ export default function ProtectedRoute({ children }) {
 
   if (!user) return <Navigate to="/" replace />;
 
+  // ── TAMBAHAN: Paksa ganti password sebelum akses halaman apapun ──
+  if (user.must_change_password && location.pathname !== "/change-password") {
+    return <Navigate to="/change-password" replace />;
+  }
+
   const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
 
   // ── 1. Halaman Netral (semua role boleh akses) ──

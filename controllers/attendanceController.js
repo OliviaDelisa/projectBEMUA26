@@ -2,7 +2,7 @@ const db = require("../db/db");
 
 const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
-const RADIUS_METER = 2000;
+const RADIUS_METER = 50;
 
 // ── Helper: format tanggal lokal (WIB) tanpa terpengaruh UTC ────
 function getLocalDateString(date = new Date()) {
@@ -139,18 +139,18 @@ exports.checkInSecretariat = (req, res) => {
   const { user_id, latitude, longitude, location_name, selfie_photo } = req.body;
   const now = new Date();
 
-  const hari = now.getDay();
-  if (hari === 0 || hari === 7) {
-    return res.status(400).json({ message: "Absensi hanya tersedia hari Senin – Jumat" });
-  }
+  //const hari = now.getDay();
+  //if (hari === 0 || hari === 6) {
+  //  return res.status(400).json({ message: "Absensi hanya tersedia hari Senin – Jumat" });
+  //}
 
-  const totalMenit = now.getHours() * 60 + now.getMinutes();
-  if (totalMenit < 3 * 60) {
-    return res.status(400).json({ message: "Absensi belum dibuka. Mulai pukul 08:00" });
-  }
-  if (totalMenit > 18 * 60) {
-    return res.status(400).json({ message: "Absensi sudah ditutup. Maksimal pukul 18:00" });
-  }
+  //const totalMenit = now.getHours() * 60 + now.getMinutes();
+  //if (totalMenit < 3 * 60) {
+  //  return res.status(400).json({ message: "Absensi belum dibuka. Mulai pukul 08:00" });
+  //}
+  //if (totalMenit > 18 * 60) {
+  //  return res.status(400).json({ message: "Absensi sudah ditutup. Maksimal pukul 18:00" });
+  //}
 
   if (latitude == null || longitude == null) {
     return res.status(400).json({ message: "Data lokasi tidak lengkap" });

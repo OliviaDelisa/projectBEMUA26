@@ -4,7 +4,7 @@ import API from "../../config/api";
 
 const SEKRE_LAT    = -0.92251;
 const SEKRE_LNG    = 100.44827;
-const RADIUS_METER = 2000;
+const RADIUS_METER = 50;
 
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
@@ -62,13 +62,14 @@ export default function Home() {
   const todayStr  = `${hariList[today.getDay()]}, ${today.getDate()}/${today.getMonth()+1}/${today.getFullYear()}`;
 
   const getCekWaktu = () => {
-    const now  = new Date();
-    const hari = now.getDay();
-    const totalMenit = now.getHours() * 60 + now.getMinutes();
-    if (hari === 0 || hari === 7) return { bisa: false, pesan: "Absensi hanya Senin – Jumat" };
-    if (totalMenit < 3 * 60)     return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
-    if (totalMenit > 18 * 60)    return { bisa: false, pesan: "Absensi ditutup pukul 18:00" };
     return { bisa: true, pesan: null };
+    //const now  = new Date();
+    //const hari = now.getDay();
+    //const totalMenit = now.getHours() * 60 + now.getMinutes();
+    //if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi hanya Senin – Jumat" };
+    //if (totalMenit < 3 * 60)     return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
+    //if (totalMenit > 18 * 60)    return { bisa: false, pesan: "Absensi ditutup pukul 18:00" };
+    //return { bisa: true, pesan: null };
   };
   const waktu = getCekWaktu();
 
