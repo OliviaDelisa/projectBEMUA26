@@ -1,4 +1,14 @@
-# Logs
+# ─── Node modules ───────────────────────
+node_modules
+frontend/node_modules
+
+# ─── Environment files ──────────────────
+.env
+.env.development
+.env.production
+*.local
+
+# ─── Logs ───────────────────────────────
 logs
 *.log
 npm-debug.log*
@@ -7,14 +17,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-.env.development
-.env.production
-
-# Editor directories and files
+# ─── Editor ─────────────────────────────
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -24,3 +27,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# CATATAN: frontend/dist SENGAJA TIDAK DIIGNORE
+# supaya hasil build ikut ke GitHub dan bisa di-serve Hostinger
