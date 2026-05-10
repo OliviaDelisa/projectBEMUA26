@@ -3,9 +3,8 @@ import { useNavigate } from "react-router-dom";
 import API from "../../config/api";
 
 const SEKRE_LAT    = -0.916996;
-const SEKRE_LNG    = 100.454804
+const SEKRE_LNG    = 100.454804;
 const RADIUS_METER = 50;
-
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -45,7 +44,6 @@ export default function Home() {
   const [distanceSekre, setDistanceSekre]             = useState(null);
   const [photoModal, setPhotoModal]                   = useState(null);
   const [radiusError, setRadiusError]                 = useState(null);
-  // Error radius per kegiatan: { [activity_id]: string }
   const [activityRadiusErrors, setActivityRadiusErrors] = useState({});
   const [showProfileMenu, setShowProfileMenu]         = useState(false);
 
@@ -61,9 +59,24 @@ export default function Home() {
   const bulanList = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
   const todayStr  = `${hariList[today.getDay()]}, ${today.getDate()}/${today.getMonth()+1}/${today.getFullYear()}`;
 
+  // ── Validasi hari & jam absensi sekre ─────────────────────────
   const getCekWaktu = () => {
-    return { bisa: true, pesan: null };
-  };
+  const now        = new Date();
+  const hari       = now.getDay();
+  const totalMenit = now.getHours() * 60 + now.getMinutes();
+
+  if (hari === 0 || hari === 6) {
+    return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
+  }
+  if (totalMenit < 8 * 60) {
+    return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
+  }
+  if (totalMenit >= 18 * 60) {
+    return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
+  }
+  return { bisa: true, pesan: null };
+};
+
   const waktu = getCekWaktu();
 
   const isKegiatanBisaAbsen = (act) => new Date() >= new Date(act.start_datetime);
@@ -241,11 +254,19 @@ export default function Home() {
     });
 
   const handleAmbilAbsensi = async (type, activity_id = null) => {
+    // ── Validasi waktu untuk absensi sekre ──────────────────────
+    if (type === "sekre") {
+      const cek = getCekWaktu();
+      if (!cek.bisa) {
+        setToast({ type: "error", msg: cek.pesan });
+        return;
+      }
+    }
+
     const key = type === "sekre" ? "sekre" : activity_id;
     setLoadingFor(key);
     setRadiusError(null);
 
-    // Reset error radius untuk kegiatan ini saja
     if (type === "kegiatan" && activity_id) {
       setActivityRadiusErrors(prev => ({ ...prev, [activity_id]: null }));
     }
@@ -263,8 +284,6 @@ export default function Home() {
           return;
         }
       }
-      // Untuk kegiatan: validasi radius dilakukan di backend setelah foto diambil
-      // karena koordinat & radius kegiatan ada di DB
 
       setCurrentAction({ type, activity_id });
       setShowCamera(true);
@@ -283,6 +302,19 @@ export default function Home() {
 
   const handleSubmitAbsensi = async () => {
     if (!capturedPhoto || !location) return;
+
+    // ── Double-check validasi waktu saat submit (untuk sekre) ───
+    if (currentAction?.type === "sekre") {
+      const cek = getCekWaktu();
+      if (!cek.bisa) {
+        setToast({ type: "error", msg: cek.pesan });
+        setShowCamera(false);
+        setCapturedPhoto(null);
+        setCaptureTime(null);
+        return;
+      }
+    }
+
     setLoadingCheckin(true);
     try {
       const url  = currentAction.type === "sekre"
@@ -310,7 +342,6 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Jika error radius dari kegiatan (403) → tampilkan di kartu kegiatan, tutup kamera
         if (res.status === 403 && currentAction.type === "kegiatan") {
           setActivityRadiusErrors(prev => ({
             ...prev,
@@ -352,7 +383,7 @@ export default function Home() {
 
   const sudahAbsenSekre = homeData?.secretariat_attendance !== null;
 
-  const jabatan    = user?.jabatan    || "-";
+  const jabatan     = user?.jabatan    || "-";
   const kementerian = user?.kementerian || null;
 
   const IconCheck = () => (
@@ -637,11 +668,13 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 mb-3 text-xs text-gray-400">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                Absensi sekre hanya dalam radius {RADIUS_METER}m dari Sekre BEM
+              {/* Info jam & radius */}
+              <div className="flex flex-col gap-1.5 mb-2">
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  Tersedia Senin–Jumat, pukul 08.00–18.00
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                </div>
               </div>
 
               {radiusError && (
@@ -677,9 +710,9 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 text-red-400 text-sm mb-3"><IconWarning /><span>Anda belum absen hari ini</span></div>
-              )}
+              ) : waktu.bisa ? (
+                <div className="flex items-center gap-2 text-red-400 text-sm mb-3"><span>Anda belum absen hari ini</span></div>
+              ) : null}
 
               <button
                 onClick={() => handleAmbilAbsensi("sekre")}
@@ -696,15 +729,6 @@ export default function Home() {
                   "Ambil Absensi Sekre"
                 )}
               </button>
-
-              {!waktu.bisa && (
-                <div className="flex items-center justify-center gap-1.5 mt-2">
-                  <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  <p className="text-xs text-amber-500 font-medium">{waktu.pesan}</p>
-                </div>
-              )}
             </div>
 
             {/* ── Absensi Kegiatan ── */}
@@ -721,13 +745,11 @@ export default function Home() {
                     const isLoadingThis      = loadingFor === act.id;
                     const radiusErrKegiatan  = activityRadiusErrors[act.id];
 
-                    // Tombol disabled jika: ada loading lain, belum mulai, atau sudah selesai
                     const tombolDisabled = loadingFor !== null || !bisaAbsen || sudahSelesai;
 
                     return (
                       <div key={act.id} className="border border-gray-100 rounded-xl p-4">
 
-                        {/* Badge status waktu */}
                         {!bisaAbsen && (
                           <div className="flex items-center gap-1.5 mb-2">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-500 text-xs font-medium">
@@ -758,7 +780,6 @@ export default function Home() {
                             <IconClock />
                             <span>{formatDatetime(act.start_datetime)} – {formatDatetime(act.end_datetime)}</span>
                           </div>
-                          {/* Info radius kegiatan */}
                           {act.radius_meters > 0 && (
                             <div className="flex items-center gap-2 text-xs text-gray-400">
                               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -769,7 +790,6 @@ export default function Home() {
                           )}
                         </div>
 
-                        {/* Error radius kegiatan */}
                         {radiusErrKegiatan && (
                           <div className="flex items-start gap-2 mb-3 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600">
                             <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -779,14 +799,12 @@ export default function Home() {
                           </div>
                         )}
 
-                        {/* Status sudah absen */}
                         {sudahAbsen && (
                           <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-xs text-green-600 font-semibold mb-2">
                             <IconCheck /><span>Sudah absen · {formatTime(act.att_check_in)}</span>
                           </div>
                         )}
 
-                        {/* Tombol aksi */}
                         <button
                           onClick={() => handleAmbilAbsensi("kegiatan", act.id)}
                           disabled={tombolDisabled}
@@ -805,7 +823,6 @@ export default function Home() {
                           )}
                         </button>
 
-                        {/* Keterangan bawah tombol */}
                         {!sudahSelesai && !bisaAbsen && infoWaktu && (
                           <div className="flex items-center justify-center gap-1.5 mt-1.5">
                             <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

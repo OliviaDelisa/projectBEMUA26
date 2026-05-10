@@ -1,7 +1,7 @@
 const db = require("../db/db");
 
 const SEKRE_LAT    = -0.916996;
-const SEKRE_LNG    = 100.454804
+const SEKRE_LNG    = 100.454804;
 const RADIUS_METER = 50;
 
 // ── Helper: format tanggal lokal (WIB) tanpa terpengaruh UTC ────
@@ -21,6 +21,25 @@ function hitungJarak(lat1, lng1, lat2, lng2) {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── Helper: validasi hari & jam absensi sekre (WIB) ─────────────
+// Server bisa berjalan di timezone apapun, jadi kita konversi ke WIB (UTC+7) secara eksplisit.
+function cekWaktuAbsensiSekre(now = new Date()) {
+  const nowWIB        = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const hariWIB       = nowWIB.getUTCDay();
+  const totalMenitWIB = nowWIB.getUTCHours() * 60 + nowWIB.getUTCMinutes();
+
+  if (hariWIB === 0 || hariWIB === 6) {
+    return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
+  }
+  if (totalMenitWIB < 8 * 60) {
+    return { bisa: false, pesan: "Absensi sekre belum dibuka (mulai pukul 08.00 WIB)" };
+  }
+  if (totalMenitWIB >= 18 * 60) {
+    return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00 WIB)" };
+  }
+  return { bisa: true, pesan: null };
 }
 
 // ── getHomeData ──────────────────────────────────────────────────
@@ -138,6 +157,12 @@ exports.checkInSecretariat = (req, res) => {
   const { user_id, latitude, longitude, location_name, selfie_photo } = req.body;
   const now = new Date();
 
+  // ── Validasi hari & jam (WIB) ────────────────────────────────
+  const cekWaktu = cekWaktuAbsensiSekre(now);
+  if (!cekWaktu.bisa) {
+    return res.status(403).json({ message: cekWaktu.pesan });
+  }
+
   if (latitude == null || longitude == null) {
     return res.status(400).json({ message: "Data lokasi tidak lengkap" });
   }
@@ -198,7 +223,6 @@ exports.checkInSecretariat = (req, res) => {
 exports.checkInActivity = (req, res) => {
   const { activity_id, user_id, latitude, longitude, location_name, selfie_photo } = req.body;
 
-  // Validasi data lokasi wajib ada
   if (latitude == null || longitude == null) {
     return res.status(400).json({ message: "Data lokasi tidak lengkap" });
   }
@@ -216,15 +240,13 @@ exports.checkInActivity = (req, res) => {
       const now       = new Date();
       const startTime = new Date(activity.start_datetime);
 
-      // Cek apakah kegiatan sudah mulai
       if (now < startTime) {
         return res.status(400).json({
           message: `Absensi baru bisa diambil mulai ${startTime.toLocaleString("id-ID")}`,
         });
       }
 
-      // ── Validasi radius lokasi kegiatan ──────────────────────────
-      // Hanya divalidasi jika kegiatan memiliki koordinat dan radius yang valid
+      // ── Validasi radius lokasi kegiatan ──────────────────────
       if (
         activity.latitude != null &&
         activity.longitude != null &&
@@ -246,7 +268,7 @@ exports.checkInActivity = (req, res) => {
         }
       }
 
-      // ── UPSERT: insert baru atau update jika sudah pernah absen ──
+      // ── UPSERT ───────────────────────────────────────────────
       db.query(
         `INSERT INTO activity_attendance
           (activity_id, user_id, check_in_time, latitude, longitude, location_name, selfie_photo, status)
