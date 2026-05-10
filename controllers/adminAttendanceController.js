@@ -51,7 +51,6 @@ exports.getSecretariatRekap = (req, res) => {
       sa.date, sa.status
     FROM users u
     JOIN user_periods up ON up.user_id = u.id AND up.is_active = TRUE
-    JOIN roles r ON r.id = up.role_id AND r.name = 'user'
     JOIN periods p ON p.id = up.period_id AND p.is_active = TRUE
     LEFT JOIN secretariat_attendance sa ON u.id = sa.user_id 
       AND sa.date BETWEEN ? AND ?
@@ -76,11 +75,10 @@ exports.getSecretariatRekap = (req, res) => {
           name:        curr.name,
           nim:         curr.nim,
           kementerian: curr.kementerian,
-          jabatan:     curr.jabatan,      // ← TAMBAHAN INI
+          jabatan:     curr.jabatan,
           attendance:  {}
         };
       }
-
       if (curr.date) {
         const dateKey = getLocalDateString(new Date(curr.date));
         acc[curr.user_id].attendance[dateKey] = curr.status;
@@ -91,7 +89,6 @@ exports.getSecretariatRekap = (req, res) => {
     res.json(Object.values(rekap));
   });
 };
-
 // ── validateAttendance ───────────────────────────────────────────
 // PUT /admin/attendance/validate/:id
 exports.validateAttendance = (req, res) => {
