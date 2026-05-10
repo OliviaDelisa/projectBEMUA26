@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../config/api";
 
-const SEKRE_LAT    = -0.92366;
-const SEKRE_LNG    = 100.44358;
+const SEKRE_LAT    = -0.916996;
+const SEKRE_LNG    = 100.454804
 const RADIUS_METER = 50;
 
 
