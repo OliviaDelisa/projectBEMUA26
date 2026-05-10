@@ -6,8 +6,16 @@ import API from "../../config/api";
 const UNAND_GREEN = "#00923D";
 
 const daftarJabatan = [
-  "Presiden Mahasiswa","Wakil Presiden Mahasiswa","Sekretaris Negara",
-  "Menteri Koordinator","Menteri","Sekretaris Menteri","Staff Ahli",
+  "Presiden Mahasiswa",
+  "Wakil Presiden Mahasiswa",
+  "Sekretaris Negara",
+  "Menteri Koordinator Bidang Pelayanan",
+  "Menteri Koordinator Bidang Administrasi Pemerintahan",
+  "Menteri Koordinator Bidang Pergerakan",
+  "Menteri Koordinator Bidang Pengabdian",
+  "Menteri",
+  "Sekretaris Menteri",
+  "Staff Ahli",
 ];
 const daftarKementerian = [
   "Kepresidenan","Komunikasi dan Informasi","Pengembangan Sumber Daya Manusia",
