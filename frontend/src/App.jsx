@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-route
 import { SidebarProvider } from "./context/SidebarContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import useRefreshPermissions from "./hooks/useRefreshPermissions";
+import Sidebar from "./components/Sidebar";
+import Topbar from "./components/Topbar";
 
 // ── Halaman Publik
 import Login from "./pages/Login";
@@ -16,10 +18,27 @@ import Piket from "./pages/admin/Piket";
 import Akun from "./pages/admin/Akun";
 import Periode from "./pages/admin/Periode";
 import Role from "./pages/admin/Role";
+import Profile from "./pages/Profile";
 
 // ── Halaman Anggota
 import Home from "./pages/user/Home";
 import RiwayatAbsensi from "./pages/user/RiwayatAbsensi";
+
+// ── Placeholder halaman belum siap
+const ComingSoon = ({ title }) => (
+  <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <Sidebar />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <Topbar title={title} />
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 font-semibold text-sm">Halaman sedang dalam pengembangan</p>
+          <p className="text-gray-400 text-xs mt-1">Segera hadir</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 function RiwayatAbsensiPage() {
   const navigate = useNavigate();
@@ -47,11 +66,16 @@ function AppRoutes() {
       <Route path="/periode"   element={<ProtectedRoute><Periode /></ProtectedRoute>} />
       <Route path="/role"      element={<ProtectedRoute><Role /></ProtectedRoute>} />
 
-      {/* ── 4. ROUTE ANGGOTA ── */}
+      {/* ── 4. ROUTE ASPIRASI (placeholder) ── */}
+      <Route path="/aspirasi"          element={<ProtectedRoute><ComingSoon title="Aspirasi Masuk" /></ProtectedRoute>} />
+      <Route path="/aspirasi/kategori" element={<ProtectedRoute><ComingSoon title="Kategori Aspirasi" /></ProtectedRoute>} />
+
+      {/* ── 5. ROUTE ANGGOTA ── */}
       <Route path="/home"            element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/riwayat-absensi" element={<ProtectedRoute><RiwayatAbsensiPage /></ProtectedRoute>} />
+      <Route path="/profile"         element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
-      {/* ── 5. FALLBACK ── */}
+      {/* ── 6. FALLBACK ── */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

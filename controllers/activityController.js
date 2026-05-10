@@ -186,14 +186,17 @@ exports.deleteActivity = (req, res) => {
 //   - status = 'hadir'       → staf sudah melakukan absen (hadir)
 //   - status = 'tidak_hadir' → staf BELUM / TIDAK melakukan absen (alfa)
 // JOIN ke user_periods untuk ambil kementerian (bukan users.kementerian)
+// 5. Ambil detail absensi per kegiatan (Untuk Panel Kelola Absensi / Drawer)
 exports.getActivityAttendance = (req, res) => {
     const { id } = req.params;
 
     const query = `
         SELECT 
-            u.id        AS user_id,
+            u.id            AS user_id,
             u.name, 
+            u.nim,
             up.kementerian, 
+            up.jabatan,
             aa.status, 
             aa.check_in_time,
             aa.selfie_photo
@@ -201,7 +204,7 @@ exports.getActivityAttendance = (req, res) => {
         JOIN users u ON aa.user_id = u.id
         LEFT JOIN user_periods up ON up.user_id = u.id AND up.is_active = TRUE
         WHERE aa.activity_id = ?
-        ORDER BY u.name ASC`;
+        ORDER BY up.kementerian ASC, u.name ASC`;
 
     db.query(query, [id], (err, results) => {
         if (err) return res.status(500).json({ message: "Gagal mengambil detail absensi", error: err });

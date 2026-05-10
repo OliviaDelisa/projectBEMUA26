@@ -27,7 +27,6 @@ function hitungJarak(lat1, lng1, lat2, lng2) {
 // GET /attendance/home/:user_id
 exports.getHomeData = (req, res) => {
   const { user_id } = req.params;
-  // FIX: pakai getLocalDateString agar tidak bergeser timezone
   const today = getLocalDateString();
 
   db.query(
@@ -139,19 +138,6 @@ exports.checkInSecretariat = (req, res) => {
   const { user_id, latitude, longitude, location_name, selfie_photo } = req.body;
   const now = new Date();
 
-  //const hari = now.getDay();
-  //if (hari === 0 || hari === 6) {
-  //  return res.status(400).json({ message: "Absensi hanya tersedia hari Senin – Jumat" });
-  //}
-
-  //const totalMenit = now.getHours() * 60 + now.getMinutes();
-  //if (totalMenit < 3 * 60) {
-  //  return res.status(400).json({ message: "Absensi belum dibuka. Mulai pukul 08:00" });
-  //}
-  //if (totalMenit > 18 * 60) {
-  //  return res.status(400).json({ message: "Absensi sudah ditutup. Maksimal pukul 18:00" });
-  //}
-
   if (latitude == null || longitude == null) {
     return res.status(400).json({ message: "Data lokasi tidak lengkap" });
   }
@@ -168,7 +154,6 @@ exports.checkInSecretariat = (req, res) => {
     });
   }
 
-  // FIX: pakai getLocalDateString agar tanggal tersimpan sesuai WIB, bukan UTC
   const today = getLocalDateString(now);
 
   db.query(
@@ -181,20 +166,26 @@ exports.checkInSecretariat = (req, res) => {
       db.query(
         `INSERT INTO secretariat_attendance
           (user_id, period_id, date, check_in_time, latitude, longitude, location_name, selfie_photo, distance_meters, status)
-         VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, 'hadir')`,
+         VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, 'hadir')
+         ON DUPLICATE KEY UPDATE
+          check_in_time   = NOW(),
+          latitude        = VALUES(latitude),
+          longitude       = VALUES(longitude),
+          location_name   = VALUES(location_name),
+          selfie_photo    = VALUES(selfie_photo),
+          distance_meters = VALUES(distance_meters),
+          status          = 'hadir'`,
         [user_id, period_id, today, latitude, longitude, location_name, selfie_photo || null, jarak],
         (err, result) => {
-          if (err) {
-            if (err.code === "ER_DUP_ENTRY") {
-              return res.status(409).json({ message: "Anda sudah absen hari ini" });
-            }
-            return res.status(500).json({ message: "Gagal absen", error: err });
-          }
+          if (err) return res.status(500).json({ message: "Gagal absen", error: err });
+
+          const isUpdate = result.affectedRows === 2;
           res.status(201).json({
-            message: "Absen berhasil",
+            message: isUpdate ? "Absen berhasil diperbarui" : "Absen berhasil",
             status: "hadir",
-            id: result.insertId,
+            id: result.insertId || null,
             distance_meters: jarak,
+            updated: isUpdate,
           });
         }
       );
@@ -206,6 +197,11 @@ exports.checkInSecretariat = (req, res) => {
 // POST /attendance/activity/checkin
 exports.checkInActivity = (req, res) => {
   const { activity_id, user_id, latitude, longitude, location_name, selfie_photo } = req.body;
+
+  // Validasi data lokasi wajib ada
+  if (latitude == null || longitude == null) {
+    return res.status(400).json({ message: "Data lokasi tidak lengkap" });
+  }
 
   db.query(
     `SELECT * FROM activities WHERE id = ? AND is_active = TRUE AND end_datetime >= NOW()`,
@@ -219,25 +215,58 @@ exports.checkInActivity = (req, res) => {
       const activity  = activities[0];
       const now       = new Date();
       const startTime = new Date(activity.start_datetime);
+
+      // Cek apakah kegiatan sudah mulai
       if (now < startTime) {
         return res.status(400).json({
           message: `Absensi baru bisa diambil mulai ${startTime.toLocaleString("id-ID")}`,
         });
       }
 
+      // ── Validasi radius lokasi kegiatan ──────────────────────────
+      // Hanya divalidasi jika kegiatan memiliki koordinat dan radius yang valid
+      if (
+        activity.latitude != null &&
+        activity.longitude != null &&
+        Number(activity.radius_meters) > 0
+      ) {
+        const jarak = Math.round(hitungJarak(
+          parseFloat(latitude),
+          parseFloat(longitude),
+          parseFloat(activity.latitude),
+          parseFloat(activity.longitude)
+        ));
+
+        if (jarak > Number(activity.radius_meters)) {
+          return res.status(403).json({
+            message: `Anda berada ${jarak}m dari lokasi kegiatan "${activity.title}". Absensi hanya bisa dilakukan dalam radius ${activity.radius_meters}m.`,
+            distance_meters: jarak,
+            radius_meters: activity.radius_meters,
+          });
+        }
+      }
+
+      // ── UPSERT: insert baru atau update jika sudah pernah absen ──
       db.query(
         `INSERT INTO activity_attendance
           (activity_id, user_id, check_in_time, latitude, longitude, location_name, selfie_photo, status)
-         VALUES (?, ?, NOW(), ?, ?, ?, ?, 'hadir')`,
+         VALUES (?, ?, NOW(), ?, ?, ?, ?, 'hadir')
+         ON DUPLICATE KEY UPDATE
+          check_in_time = NOW(),
+          latitude      = VALUES(latitude),
+          longitude     = VALUES(longitude),
+          location_name = VALUES(location_name),
+          selfie_photo  = VALUES(selfie_photo),
+          status        = 'hadir'`,
         [activity_id, user_id, latitude, longitude, location_name, selfie_photo || null],
         (err, result) => {
-          if (err) {
-            if (err.code === "ER_DUP_ENTRY") {
-              return res.status(409).json({ message: "Anda sudah absen kegiatan ini" });
-            }
-            return res.status(500).json({ message: "Gagal absen kegiatan", error: err });
-          }
-          res.status(201).json({ message: "Absen kegiatan berhasil", id: result.insertId });
+          if (err) return res.status(500).json({ message: "Gagal absen kegiatan", error: err });
+          const isUpdate = result.affectedRows === 2;
+          res.status(201).json({
+            message: isUpdate ? "Absen berhasil diperbarui" : "Absen kegiatan berhasil",
+            id: result.insertId || null,
+            updated: isUpdate,
+          });
         }
       );
     }

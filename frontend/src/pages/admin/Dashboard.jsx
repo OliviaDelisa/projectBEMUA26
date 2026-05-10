@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
+import Topbar from "../../components/Topbar";
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -16,7 +17,6 @@ import API from "../../config/api";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 export default function Dashboard() {
-  const [currentTime, setCurrentTime]   = useState(new Date());
   const [members, setMembers]           = useState([]);
   const [attendance, setAttendance]     = useState([]);
   const [activities, setActivities]     = useState([]);
@@ -24,14 +24,8 @@ export default function Dashboard() {
   const [loading, setLoading]           = useState(true);
   const [errors, setErrors]             = useState([]);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
-    return () => clearInterval(timer);
-  }, []);
-
   useEffect(() => { fetchDashboardData(); }, []);
 
-  // Helper fetch dengan error handling
   const safeFetch = async (url) => {
     try {
       const res = await fetch(url);
@@ -55,7 +49,7 @@ export default function Dashboard() {
     const aktif   = periods.find(p => p.is_active === 1 || p.is_active === true) ?? periods[0] ?? null;
     setActivePeriod(aktif);
 
-    // 2. Fetch anggota — dengan period_id jika ada, fallback tanpa filter
+    // 2. Fetch anggota
     let memberJson = null;
     if (aktif?.id) {
       memberJson = await safeFetch(`${API}/members?period_id=${aktif.id}`);
@@ -96,7 +90,7 @@ export default function Dashboard() {
 
   const getStatus = (k) => {
     const now = new Date(), start = new Date(k.start_datetime), end = new Date(k.end_datetime);
-    if (now < start)               return "mendatang";
+    if (now < start)                return "mendatang";
     if (now >= start && now <= end) return "berlangsung";
     return "selesai";
   };
@@ -142,21 +136,26 @@ export default function Dashboard() {
     }],
   }), [hadirCount, tidakAbsen]);
 
-  const kegiatanTampil = useMemo(() =>
-    [...activities].sort((a,b) => new Date(a.start_datetime)-new Date(b.start_datetime)).slice(0,3),
-    [activities]
-  );
+  // ✅ FIX: Mendatang/berlangsung dulu (terdekat di atas),
+  //         kalau tidak ada baru tampilkan selesai (terbaru di atas)
+  const kegiatanTampil = useMemo(() => {
+    const now = new Date();
+    const mendatang = activities
+      .filter(k => new Date(k.end_datetime) >= now)
+      .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
 
-  const formatLiveDate = () => {
-    const days   = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
-    const months = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-    return `${days[currentTime.getDay()]}, ${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()} · ${String(currentTime.getHours()).padStart(2,"0")}:${String(currentTime.getMinutes()).padStart(2,"0")}`;
-  };
+    if (mendatang.length > 0) return mendatang.slice(0, 3);
+
+    return [...activities]
+      .filter(k => new Date(k.end_datetime) < now)
+      .sort((a, b) => new Date(b.end_datetime) - new Date(a.end_datetime))
+      .slice(0, 3);
+  }, [activities]);
 
   const jumlahKem = [...new Set(members.map(m => m.kementerian).filter(Boolean))].length;
 
   if (loading) return (
-    <div className="flex h-screen bg-[#f4f4ef]">
+    <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
@@ -168,25 +167,12 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="flex h-screen bg-[#f4f4ef] overflow-hidden">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Topbar */}
-        <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-green-800">Dashboard</h1>
-            <p className="text-xs text-gray-400 italic font-medium">Selamat datang, Admin — Ringkasan aktivitas BEM KM Universitas Andalas</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={fetchDashboardData} className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-full hover:bg-green-100 transition">
-              ↺ Refresh
-            </button>
-            <div className="text-xs font-mono bg-[#f4f4ef] px-4 py-2 rounded-full border border-gray-200 text-gray-500">
-              {formatLiveDate()}
-            </div>
-          </div>
-        </div>
+        {/* ✅ FIX: Pakai Topbar yang sama seperti halaman lain */}
+        <Topbar title="Dashboard" />
 
         {/* Banner error */}
         {errors.length > 0 && (
@@ -247,10 +233,9 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b flex justify-between items-center">
                 <span className="text-sm font-bold flex items-center gap-2 tracking-tight text-gray-700">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                  Absensi Sekre Hari Ini
+                  ABSENSI SEKRE HARI INI
                 </span>
-                <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">● Live</span>
+                
               </div>
               <div className="p-6 flex items-center gap-8">
                 {totalAnggota > 0 ? (
@@ -341,7 +326,7 @@ export default function Dashboard() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-4 border-b font-bold text-sm tracking-tight text-gray-700">Ranking Kehadiran</div>
+              <div className="p-4 border-b font-bold text-sm tracking-tight text-gray-700">RANGKING KEHADIRAN</div>
               {ranking.length > 0 ? (
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-bold">

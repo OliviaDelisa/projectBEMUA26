@@ -27,6 +27,7 @@ exports.loginUser = (req, res) => {
            r.name AS role, 
            r.label AS role_label,
            up.jabatan, up.kementerian, up.period_id,
+           up.is_active,
            p.name AS period_name,
            (
              SELECT GROUP_CONCAT(prm.path)
@@ -39,6 +40,7 @@ exports.loginUser = (req, res) => {
     LEFT JOIN roles r ON r.id = up.role_id
     LEFT JOIN periods p ON p.id = up.period_id
     WHERE u.username = ?
+    ORDER BY up.is_active DESC
     LIMIT 1
   `;
 
@@ -50,16 +52,24 @@ exports.loginUser = (req, res) => {
     }
 
     const user = result[0];
+
+    // Cek password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Username atau password salah" });
     }
 
+    // Blokir hanya kalau is_active eksplisit 0 (bukan null)
+    // null = user tidak punya periode (user baru), tetap boleh login
+    if (user.is_active === 0) {
+      return res.status(403).json({ message: "Akun Anda tidak aktif. Hubungi administrator." });
+    }
+
     const { password: _, ...safeUser } = user;
-    
-   safeUser.permissions = user.permissions
-  ? user.permissions.split(",").filter((p) => p && p !== "null" && p.trim() !== "")
-  : [];
+    safeUser.must_change_password = user.must_change_password === 1 || user.must_change_password === true;
+    safeUser.permissions = user.permissions
+      ? user.permissions.split(",").filter((p) => p && p !== "null" && p.trim() !== "")
+      : [];
 
     res.json({ message: "Login berhasil", user: safeUser });
   });
@@ -163,7 +173,7 @@ exports.updateUser = async (req, res) => {
 
     if (password && password.trim() !== "") {
       const hashed = await bcrypt.hash(password, 10);
-      userFields.splice(2, 0, `password=?`, `must_change_password=FALSE`);
+      userFields.splice(2, 0, `password=?`, `must_change_password=TRUE`);
       userParams.splice(2, 0, hashed);
     }
 
@@ -193,17 +203,31 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// ─── PASSWORD MANAGEMENT & DELETE ───────────────────────────────────────────
+// ─── RESET PASSWORD ───────────────────────────────────────────────────────────
 exports.resetPassword = async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
-  const hashed = await bcrypt.hash(newPassword, 10);
-  db.query(`UPDATE users SET password=?, must_change_password=TRUE WHERE id=?`, [hashed, id], (err) => {
-    if (err) return res.status(500).json({ message: "Gagal reset password" });
-    res.json({ message: "Password berhasil direset" });
+
+  db.query(`SELECT nim FROM users WHERE id = ?`, [id], async (err, result) => {
+    if (err) return res.status(500).json({ message: "Terjadi kesalahan server" });
+    if (result.length === 0) return res.status(404).json({ message: "User tidak ditemukan" });
+
+    const nim = result[0].nim;
+    const passwordToSet = (newPassword && newPassword.trim() !== "") ? newPassword : `bem${nim}`;
+    const hashed = await bcrypt.hash(passwordToSet, 10);
+
+    db.query(
+      `UPDATE users SET password=?, must_change_password=TRUE, updated_at=NOW() WHERE id=?`,
+      [hashed, id],
+      (err2) => {
+        if (err2) return res.status(500).json({ message: "Gagal reset password" });
+        res.json({ message: "Password berhasil direset", defaultPassword: passwordToSet });
+      }
+    );
   });
 };
 
+// ─── CHANGE PASSWORD ──────────────────────────────────────────────────────────
 exports.changePassword = async (req, res) => {
   const { id } = req.params;
   const { oldPassword, newPassword } = req.body;
@@ -219,6 +243,7 @@ exports.changePassword = async (req, res) => {
   });
 };
 
+// ─── DELETE USER ──────────────────────────────────────────────────────────────
 exports.deleteUser = (req, res) => {
   const { id } = req.params;
   db.query(`DELETE FROM users WHERE id = ?`, [id], (err) => {
@@ -227,6 +252,7 @@ exports.deleteUser = (req, res) => {
   });
 };
 
+// ─── GET USER PERMISSIONS ─────────────────────────────────────────────────────
 exports.getUserPermissions = (req, res) => {
   const { id } = req.params;
   const sql = `

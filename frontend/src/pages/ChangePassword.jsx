@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import API from "../config/api";
+import { MANAJEMEN_PATHS } from "../config/constants";
 
 export default function ChangePassword() {
   const [form, setForm] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" });
@@ -7,12 +9,15 @@ export default function ChangePassword() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const navigate = useNavigate();
+
   const stored = sessionStorage.getItem("user") || localStorage.getItem("user");
   const user = stored ? JSON.parse(stored) : null;
 
   useEffect(() => {
-    if (!user || !user.must_change_password) {
-      window.location.href = "/";
+    const mustChange = user?.must_change_password;
+    if (!user || !mustChange || mustChange === false || mustChange == 0) {
+      navigate("/", { replace: true });
     }
   }, []);
 
@@ -27,11 +32,17 @@ export default function ChangePassword() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Cek syarat password realtime
+  const pwLen = form.newPassword.length >= 6;
+  const pwUpper = /[A-Z]/.test(form.newPassword);
+  const pwNum = /[0-9]/.test(form.newPassword);
+  const pwMatch = form.newPassword === form.confirmPassword && form.confirmPassword !== "";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (form.newPassword !== form.confirmPassword) {
-      setToast({ type: "error", msg: "Password baru dan konfirmasi tidak cocok." });
+    if (!form.oldPassword || !form.newPassword || !form.confirmPassword) {
+      setToast({ type: "error", msg: "Semua field harus diisi." });
       return;
     }
 
@@ -40,9 +51,23 @@ export default function ChangePassword() {
       return;
     }
 
+    if (!/[A-Z]/.test(form.newPassword)) {
+      setToast({ type: "error", msg: "Password harus mengandung huruf kapital." });
+      return;
+    }
+
+    if (!/[0-9]/.test(form.newPassword)) {
+      setToast({ type: "error", msg: "Password harus mengandung angka." });
+      return;
+    }
+
+    if (form.newPassword !== form.confirmPassword) {
+      setToast({ type: "error", msg: "Password baru dan konfirmasi tidak cocok." });
+      return;
+    }
+
     setLoading(true);
     try {
-      // ✅ Gunakan API dari config, bukan hardcode IP
       const res = await fetch(`${API}/users/${user.id}/change-password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -68,9 +93,10 @@ export default function ChangePassword() {
       setToast({ type: "success", msg: "Password berhasil diubah! Mengalihkan..." });
 
       setTimeout(() => {
-        const role = user?.role;
-        window.location.href = role === "superadmin" || role === "admin" ? "/dashboard" : "/home";
-      }, 1500);
+      const permissions = Array.isArray(updatedUser?.permissions) ? updatedUser.permissions : [];
+      const canManajemen = permissions.some((p) => MANAJEMEN_PATHS.includes(p));
+      navigate(canManajemen ? "/select-portal" : "/home", { replace: true });
+    }, 1500);
 
     } catch {
       setLoading(false);
@@ -146,11 +172,8 @@ export default function ChangePassword() {
             <p className="text-xs text-gray-400">Buat password baru sebelum melanjutkan</p>
           </div>
 
-          {/* Info box */}
-          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 flex gap-3 items-start">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
+          {/* Info box — tanpa icon */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
             <p className="text-xs text-amber-700 leading-relaxed">
               Akun Anda masih menggunakan password default. Demi keamanan, silakan ganti password sekarang.
             </p>
@@ -159,6 +182,7 @@ export default function ChangePassword() {
           {/* Form */}
           <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
+            {/* Password Lama */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Password Lama</label>
               <div className="relative">
@@ -172,19 +196,44 @@ export default function ChangePassword() {
               </div>
             </div>
 
+            {/* Password Baru */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Password Baru</label>
               <div className="relative">
                 <input name="newPassword" type={show.new ? "text" : "password"}
-                  placeholder="Minimal 6 karakter" value={form.newPassword}
+                  placeholder="Minimal 6 karakter, huruf kapital & angka" value={form.newPassword}
                   onChange={handleChange} required className={inputClass} />
                 <button type="button" onClick={() => toggleShow("new")}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#00923D] transition">
                   <EyeIcon visible={show.new} />
                 </button>
               </div>
+              {/* Syarat password realtime */}
+              {form.newPassword.length > 0 && (
+                <div className="flex flex-col gap-1 mt-1">
+                  <div className={`flex items-center gap-1.5 text-xs ${pwLen ? "text-green-500" : "text-gray-400"}`}>
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      {pwLen ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /> : <circle cx="12" cy="12" r="9" />}
+                    </svg>
+                    Minimal 6 karakter
+                  </div>
+                  <div className={`flex items-center gap-1.5 text-xs ${pwUpper ? "text-green-500" : "text-gray-400"}`}>
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      {pwUpper ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /> : <circle cx="12" cy="12" r="9" />}
+                    </svg>
+                    Mengandung huruf kapital
+                  </div>
+                  <div className={`flex items-center gap-1.5 text-xs ${pwNum ? "text-green-500" : "text-gray-400"}`}>
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      {pwNum ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /> : <circle cx="12" cy="12" r="9" />}
+                    </svg>
+                    Mengandung angka
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Konfirmasi Password */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Konfirmasi Password</label>
               <div className="relative">
@@ -196,9 +245,15 @@ export default function ChangePassword() {
                   <EyeIcon visible={show.confirm} />
                 </button>
               </div>
-              {form.confirmPassword && (
-                <p className={`text-xs mt-0.5 ${form.newPassword === form.confirmPassword ? "text-green-500" : "text-red-400"}`}>
-                  {form.newPassword === form.confirmPassword ? "✓ Password cocok" : "✗ Password tidak cocok"}
+              {form.confirmPassword.length > 0 && (
+                <p className={`text-xs mt-0.5 flex items-center gap-1.5 ${pwMatch ? "text-green-500" : "text-red-400"}`}>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    {pwMatch
+                      ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      : <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>
+                    }
+                  </svg>
+                  {pwMatch ? "Password cocok" : "Password tidak cocok"}
                 </p>
               )}
             </div>

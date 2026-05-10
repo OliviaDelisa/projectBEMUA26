@@ -23,7 +23,6 @@ exports.getAdminSecretariatMonitor = (req, res) => {
   const params = [];
 
   if (date) {
-    // FIX: filter pakai DATE(sa.date) agar tidak terpengaruh timezone
     query += " AND DATE(sa.date) = ?";
     params.push(date);
   }
@@ -47,7 +46,8 @@ exports.getSecretariatRekap = (req, res) => {
 
   let query = `
     SELECT 
-      u.id as user_id, u.name, u.nim, up.kementerian,
+      u.id as user_id, u.name, u.nim,
+      up.kementerian, up.jabatan,
       sa.date, sa.status
     FROM users u
     JOIN user_periods up ON up.user_id = u.id AND up.is_active = TRUE
@@ -76,12 +76,12 @@ exports.getSecretariatRekap = (req, res) => {
           name:        curr.name,
           nim:         curr.nim,
           kementerian: curr.kementerian,
+          jabatan:     curr.jabatan,      // ← TAMBAHAN INI
           attendance:  {}
         };
       }
 
       if (curr.date) {
-        // FIX: pakai getLocalDateString agar dateKey tidak bergeser timezone
         const dateKey = getLocalDateString(new Date(curr.date));
         acc[curr.user_id].attendance[dateKey] = curr.status;
       }
@@ -96,7 +96,7 @@ exports.getSecretariatRekap = (req, res) => {
 // PUT /admin/attendance/validate/:id
 exports.validateAttendance = (req, res) => {
   const { id } = req.params;
-  const { status } = req.body; // 'hadir' atau 'rejected'
+  const { status } = req.body;
 
   db.query(
     "UPDATE secretariat_attendance SET status = ? WHERE id = ?",

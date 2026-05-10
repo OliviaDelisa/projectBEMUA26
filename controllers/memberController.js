@@ -103,8 +103,9 @@ exports.createMember = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     db.query(
+      // ✅ FIX: TRUE supaya user wajib ganti password saat pertama login
       `INSERT INTO users (name, nim, username, password, must_change_password)
-       VALUES (?, ?, ?, ?, FALSE)`,
+       VALUES (?, ?, ?, ?, TRUE)`,
       [name, nim, username, hashedPassword],
       (err, result) => {
         if (err) {
@@ -152,7 +153,8 @@ exports.updateMember = async (req, res) => {
     if (password && password.trim() !== "") {
       const hashedPassword = await bcrypt.hash(password, 10);
       const [result] = await db.promise().query(
-        `UPDATE users SET name=?, nim=?, username=?, password=?, must_change_password=FALSE, updated_at=NOW() WHERE id=?`,
+        // ✅ FIX: TRUE supaya user wajib ganti password setelah admin reset
+        `UPDATE users SET name=?, nim=?, username=?, password=?, must_change_password=TRUE, updated_at=NOW() WHERE id=?`,
         [name, nim, username, hashedPassword, id]
       );
       if (result.affectedRows === 0)
@@ -193,8 +195,6 @@ exports.updateMember = async (req, res) => {
 };
 
 // ─── BULK NONAKTIFKAN (superadmin dikecualikan) ───────────────────────────────
-// POST /members/bulk-deactivate
-// body: { period_id }
 exports.bulkDeactivate = (req, res) => {
   const { period_id } = req.body;
   if (!period_id) return res.status(400).json({ message: "period_id wajib diisi" });
@@ -216,8 +216,6 @@ exports.bulkDeactivate = (req, res) => {
 };
 
 // ─── SALIN anggota ke periode baru ───────────────────────────────────────────
-// POST /members/copy-to-period
-// body: { from_period_id, to_period_id, user_ids[] (opsional, kosong = salin semua) }
 exports.copyToPeriod = async (req, res) => {
   const { from_period_id, to_period_id, user_ids } = req.body;
 
@@ -311,7 +309,7 @@ exports.resetPassword = async (req, res) => {
     if (result.length === 0) return res.status(404).json({ message: "Anggota tidak ditemukan" });
 
     const nim     = result[0].nim;
-    const newPass = (password && password.trim() !== "") ? password : `BEM${nim}`;
+   const newPass = (password && password.trim() !== "") ? password : `bem${nim}`;
     const hashed  = await bcrypt.hash(newPass, 10);
 
     db.query(

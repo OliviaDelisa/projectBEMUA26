@@ -8,7 +8,8 @@ export default function ProtectedRoute({ children }) {
   if (!user) return <Navigate to="/" replace />;
 
   // ── TAMBAHAN: Paksa ganti password sebelum akses halaman apapun ──
-  if (user.must_change_password && location.pathname !== "/change-password") {
+if (user.must_change_password && user.must_change_password !== false && user.must_change_password != 0
+    && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
   }
 
@@ -19,11 +20,12 @@ export default function ProtectedRoute({ children }) {
   if (neutralPaths.includes(location.pathname)) return children;
 
   // ── 2. Halaman publik untuk semua yang sudah login ──
-  const publicPaths = ["/home", "/riwayat-absensi"];
+  const publicPaths = ["/home", "/riwayat-absensi", "/profile"];
   if (publicPaths.includes(location.pathname)) return children;
 
   // ── 3. Cek permission berdasarkan path (berlaku untuk SEMUA role) ──
   if (userPermissions.includes(location.pathname)) return children;
+
 
   // ── 4. Fallback: redirect ke halaman pertama yang bisa diakses ──
   const firstAllowed = userPermissions.find((p) => p && p.startsWith("/"));

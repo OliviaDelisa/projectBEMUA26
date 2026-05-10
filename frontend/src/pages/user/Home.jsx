@@ -25,9 +25,6 @@ function formatJarak(m) {
 export default function Home() {
   const navigate = useNavigate();
 
-  // ── FIX: user sekarang punya jabatan/kementerian/role dari user_periods
-  // Field ini di-set saat login dari endpoint /auth/login yang sudah
-  // melakukan JOIN ke user_periods WHERE is_active = TRUE
   const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
   const user   = stored ? JSON.parse(stored) : null;
 
@@ -48,6 +45,9 @@ export default function Home() {
   const [distanceSekre, setDistanceSekre]             = useState(null);
   const [photoModal, setPhotoModal]                   = useState(null);
   const [radiusError, setRadiusError]                 = useState(null);
+  // Error radius per kegiatan: { [activity_id]: string }
+  const [activityRadiusErrors, setActivityRadiusErrors] = useState({});
+  const [showProfileMenu, setShowProfileMenu]         = useState(false);
 
   // null = tidak ada, "sekre" = tombol sekre, number = activity_id kegiatan
   const [loadingFor, setLoadingFor] = useState(null);
@@ -63,17 +63,11 @@ export default function Home() {
 
   const getCekWaktu = () => {
     return { bisa: true, pesan: null };
-    //const now  = new Date();
-    //const hari = now.getDay();
-    //const totalMenit = now.getHours() * 60 + now.getMinutes();
-    //if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi hanya Senin – Jumat" };
-    //if (totalMenit < 3 * 60)     return { bisa: false, pesan: "Absensi dibuka pukul 08:00" };
-    //if (totalMenit > 18 * 60)    return { bisa: false, pesan: "Absensi ditutup pukul 18:00" };
-    //return { bisa: true, pesan: null };
   };
   const waktu = getCekWaktu();
 
   const isKegiatanBisaAbsen = (act) => new Date() >= new Date(act.start_datetime);
+  const isKegiatanMasihBerlangsung = (act) => new Date() <= new Date(act.end_datetime);
 
   const formatWaktuMulai = (dt) => {
     const d   = new Date(dt);
@@ -250,9 +244,16 @@ export default function Home() {
     const key = type === "sekre" ? "sekre" : activity_id;
     setLoadingFor(key);
     setRadiusError(null);
+
+    // Reset error radius untuk kegiatan ini saja
+    if (type === "kegiatan" && activity_id) {
+      setActivityRadiusErrors(prev => ({ ...prev, [activity_id]: null }));
+    }
+
     try {
       const loc = await getGPS();
       setLocation(loc);
+
       if (type === "sekre") {
         const jarak = hitungJarak(loc.latitude, loc.longitude, SEKRE_LAT, SEKRE_LNG);
         setDistanceSekre(jarak);
@@ -262,6 +263,9 @@ export default function Home() {
           return;
         }
       }
+      // Untuk kegiatan: validasi radius dilakukan di backend setelah foto diambil
+      // karena koordinat & radius kegiatan ada di DB
+
       setCurrentAction({ type, activity_id });
       setShowCamera(true);
       setCapturedPhoto(null);
@@ -285,8 +289,6 @@ export default function Home() {
         ? `${API}/attendance/secretariat/checkin`
         : `${API}/attendance/activity/checkin`;
 
-      // ── FIX: tidak perlu kirim period_id dari frontend,
-      // backend akan ambil sendiri dari tabel periods WHERE is_active = TRUE
       const body = currentAction.type === "sekre"
         ? {
             user_id:       user.id,
@@ -306,9 +308,24 @@ export default function Home() {
 
       const res  = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
-      if (!res.ok) { setToast({ type: "error", msg: data.message }); return; }
 
-      setToast({ type: "success", msg: "Absen berhasil dicatat!" });
+      if (!res.ok) {
+        // Jika error radius dari kegiatan (403) → tampilkan di kartu kegiatan, tutup kamera
+        if (res.status === 403 && currentAction.type === "kegiatan") {
+          setActivityRadiusErrors(prev => ({
+            ...prev,
+            [currentAction.activity_id]: data.message,
+          }));
+          setShowCamera(false);
+          setCapturedPhoto(null);
+          setCaptureTime(null);
+        } else {
+          setToast({ type: "error", msg: data.message });
+        }
+        return;
+      }
+
+      setToast({ type: "success", msg: data.updated ? "Absen berhasil diperbarui!" : "Absen berhasil dicatat!" });
       setShowCamera(false);
       setCapturedPhoto(null);
       setCaptureTime(null);
@@ -335,14 +352,6 @@ export default function Home() {
 
   const sudahAbsenSekre = homeData?.secretariat_attendance !== null;
 
-  // ── FIX: jabatan & kementerian dibaca dari user_periods melalui user object
-  // yang di-set saat login. Pastikan endpoint /auth/login JOIN ke user_periods
-  // dengan query seperti:
-  //   SELECT u.*, up.jabatan, up.kementerian, up.role
-  //   FROM users u
-  //   JOIN user_periods up ON up.user_id = u.id
-  //   JOIN periods p ON p.id = up.period_id AND p.is_active = TRUE
-  //   WHERE up.is_active = TRUE AND u.username = ?
   const jabatan    = user?.jabatan    || "-";
   const kementerian = user?.kementerian || null;
 
@@ -371,6 +380,11 @@ export default function Home() {
     <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    </svg>
+  );
+  const IconRefresh = () => (
+    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     </svg>
   );
 
@@ -509,7 +523,6 @@ export default function Home() {
             <p className="text-green-200 text-xs mb-1">Selamat Datang</p>
             <h1 className="text-white font-bold text-lg leading-tight">{user?.name?.toUpperCase()}</h1>
             <p className="text-green-100 text-xs mt-0.5">{user?.nim}</p>
-            {/* ── FIX: jabatan & kementerian dari user_periods ── */}
             <p className="text-green-100 text-xs font-medium mt-1">
               {jabatan}{kementerian ? ` — ${kementerian}` : ""}
             </p>
@@ -530,17 +543,53 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 mt-1 shrink-0">
-            <button className="relative text-white/80 hover:text-white transition">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+
+          <div className="flex items-center gap-2 mt-1 shrink-0">
+            {/* Notifikasi */}
+            <button className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </button>
-            <button onClick={handleLogout} className="text-white/70 hover:text-white transition">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
+
+            {/* Profil Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowProfileMenu(v => !v)}
+                className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+
+              {showProfileMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowProfileMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-lg shadow-black/10 border border-gray-100 overflow-hidden z-20">
+                    <button
+                      onClick={() => { setShowProfileMenu(false); navigate("/profile"); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Profil
+                    </button>
+                    <div className="h-px bg-gray-100" />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Keluar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -566,7 +615,6 @@ export default function Home() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Piket Hari Ini!</p>
-                  {/* ── FIX: kementerian dari user_periods ── */}
                   <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
                     {kementerian || "Kementerian Anda"} mendapat jadwal piket sekretariat hari ini.
                   </p>
@@ -607,7 +655,12 @@ export default function Home() {
 
               {sudahAbsenSekre ? (
                 <div className="flex flex-col gap-2.5 mb-3 p-4 rounded-2xl bg-green-50 border border-green-100">
-                  <div className="flex items-center gap-2 text-green-600 text-sm font-semibold"><IconCheck /><span>Anda sudah absen</span></div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+                      <IconCheck />
+                      <span>Anda sudah absen</span>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <IconClock />
                     <span>{formatTime(homeData.secretariat_attendance.check_in_time)}, {new Date(homeData.secretariat_attendance.check_in_time).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</span>
@@ -630,15 +683,21 @@ export default function Home() {
 
               <button
                 onClick={() => handleAmbilAbsensi("sekre")}
-                disabled={sudahAbsenSekre || loadingFor !== null || !waktu.bisa}
+                disabled={loadingFor !== null || !waktu.bisa}
                 className="w-full h-11 bg-[#00923D] hover:bg-[#007a32] text-white text-sm font-semibold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loadingFor === "sekre" ? (
                   <span className="flex items-center justify-center gap-2"><Spinner />Mencari lokasi...</span>
-                ) : sudahAbsenSekre ? "Sudah Absen" : !waktu.bisa ? "Absensi Tidak Tersedia" : "Ambil Absensi Sekre"}
+                ) : !waktu.bisa ? (
+                  "Absensi Tidak Tersedia"
+                ) : sudahAbsenSekre ? (
+                  <span className="flex items-center justify-center gap-2"><IconRefresh />Absen Ulang</span>
+                ) : (
+                  "Ambil Absensi Sekre"
+                )}
               </button>
 
-              {!sudahAbsenSekre && !waktu.bisa && (
+              {!waktu.bisa && (
                 <div className="flex items-center justify-center gap-1.5 mt-2">
                   <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
@@ -654,13 +713,21 @@ export default function Home() {
                 <h2 className="text-sm font-bold text-gray-800 mb-3">Absensi Kegiatan</h2>
                 <div className="flex flex-col gap-4">
                   {homeData.activities.map((act) => {
-                    const sudahAbsen = act.att_status === "hadir";
-                    const bisaAbsen  = isKegiatanBisaAbsen(act);
-                    const infoWaktu  = !bisaAbsen ? formatWaktuMulai(act.start_datetime) : null;
-                    const isLoadingThis = loadingFor === act.id;
+                    const sudahAbsen         = act.att_status === "hadir";
+                    const bisaAbsen          = isKegiatanBisaAbsen(act);
+                    const masihBerlangsung   = isKegiatanMasihBerlangsung(act);
+                    const sudahSelesai       = !masihBerlangsung;
+                    const infoWaktu          = !bisaAbsen ? formatWaktuMulai(act.start_datetime) : null;
+                    const isLoadingThis      = loadingFor === act.id;
+                    const radiusErrKegiatan  = activityRadiusErrors[act.id];
+
+                    // Tombol disabled jika: ada loading lain, belum mulai, atau sudah selesai
+                    const tombolDisabled = loadingFor !== null || !bisaAbsen || sudahSelesai;
 
                     return (
                       <div key={act.id} className="border border-gray-100 rounded-xl p-4">
+
+                        {/* Badge status waktu */}
                         {!bisaAbsen && (
                           <div className="flex items-center gap-1.5 mb-2">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-500 text-xs font-medium">
@@ -671,27 +738,75 @@ export default function Home() {
                             </span>
                           </div>
                         )}
+                        {sudahSelesai && (
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Kegiatan Selesai
+                            </span>
+                          </div>
+                        )}
+
                         <p className="text-sm font-semibold text-gray-800 mb-2">{act.title}</p>
                         {act.description && <p className="text-xs text-gray-400 mb-2 leading-relaxed">{act.description}</p>}
+
                         <div className="flex flex-col gap-1.5 mb-3">
                           <div className="flex items-start gap-2 text-xs text-gray-400"><IconPin /><span className="leading-relaxed">{act.location_name}</span></div>
-                          <div className="flex items-center gap-2 text-xs text-gray-400"><IconClock /><span>{formatDatetime(act.start_datetime)} – Selesai</span></div>
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <IconClock />
+                            <span>{formatDatetime(act.start_datetime)} – {formatDatetime(act.end_datetime)}</span>
+                          </div>
+                          {/* Info radius kegiatan */}
+                          {act.radius_meters > 0 && (
+                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                              </svg>
+                              <span>Absensi dalam radius {act.radius_meters}m dari lokasi kegiatan</span>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Error radius kegiatan */}
+                        {radiusErrKegiatan && (
+                          <div className="flex items-start gap-2 mb-3 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600">
+                            <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                            <p className="leading-relaxed">{radiusErrKegiatan}</p>
+                          </div>
+                        )}
+
+                        {/* Status sudah absen */}
                         {sudahAbsen && (
                           <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-xs text-green-600 font-semibold mb-2">
                             <IconCheck /><span>Sudah absen · {formatTime(act.att_check_in)}</span>
                           </div>
                         )}
+
+                        {/* Tombol aksi */}
                         <button
                           onClick={() => handleAmbilAbsensi("kegiatan", act.id)}
-                          disabled={sudahAbsen || loadingFor !== null || !bisaAbsen}
+                          disabled={tombolDisabled}
                           className="w-full h-10 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isLoadingThis ? (
                             <span className="flex items-center justify-center gap-2"><Spinner />Mencari lokasi...</span>
-                          ) : sudahAbsen ? "Sudah Absen" : !bisaAbsen ? "Belum Dibuka" : "Ambil Absensi Kegiatan"}
+                          ) : sudahSelesai ? (
+                            "Absensi Ditutup"
+                          ) : !bisaAbsen ? (
+                            "Belum Dibuka"
+                          ) : sudahAbsen ? (
+                            <span className="flex items-center justify-center gap-2"><IconRefresh />Absen Ulang</span>
+                          ) : (
+                            "Ambil Absensi Kegiatan"
+                          )}
                         </button>
-                        {!sudahAbsen && !bisaAbsen && infoWaktu && (
+
+                        {/* Keterangan bawah tombol */}
+                        {!sudahSelesai && !bisaAbsen && infoWaktu && (
                           <div className="flex items-center justify-center gap-1.5 mt-1.5">
                             <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
@@ -699,8 +814,11 @@ export default function Home() {
                             <p className="text-xs text-blue-400 font-medium">{infoWaktu}</p>
                           </div>
                         )}
-                        {!sudahAbsen && bisaAbsen && (
+                        {!sudahSelesai && bisaAbsen && !sudahAbsen && (
                           <p className="text-xs text-gray-400 text-center mt-1.5">Absen dapat diambil sesuai waktu pelaksanaan</p>
+                        )}
+                        {!sudahSelesai && bisaAbsen && sudahAbsen && (
+                          <p className="text-xs text-gray-400 text-center mt-1.5">Absen ulang tersedia selama kegiatan berlangsung</p>
                         )}
                       </div>
                     );

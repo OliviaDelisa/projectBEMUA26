@@ -32,7 +32,7 @@ export default function Login() {
 
       if (!res.ok) {
         setLoading(false);
-        setToast("Username atau password salah.");
+         setToast(data.message || "Username atau password salah.");
         return;
       }
 
