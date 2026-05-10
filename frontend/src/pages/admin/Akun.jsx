@@ -13,7 +13,9 @@ const daftarJabatan = [
   "Menteri Koordinator Bidang Administrasi Pemerintahan",
   "Menteri Koordinator Bidang Pergerakan",
   "Menteri Koordinator Bidang Pengabdian",
-  "Menteri",
+  "Inspektur", 
+  "Menteri",          
+  "Sekretaris Inspektur", 
   "Sekretaris Menteri",
   "Staff Ahli",
 ];
