@@ -231,12 +231,16 @@ export default function Home() {
   const video  = videoRef.current;
   const canvas = canvasRef.current;
   if (!video || !canvas) return;
-  const MAX_WIDTH = 800;
+
+  // Batasi resolusi maksimal 480px
+  const MAX_WIDTH = 480;
   const ratio     = Math.min(1, MAX_WIDTH / video.videoWidth);
   canvas.width    = video.videoWidth  * ratio;
   canvas.height   = video.videoHeight * ratio;
   canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-  setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.5));
+
+  // Kompres lebih kecil: quality 0.4
+  setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.4));
   setCaptureTime(new Date());
   stopCamera();
 };
