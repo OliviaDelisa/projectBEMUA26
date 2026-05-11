@@ -9,8 +9,11 @@ function getLocalDateString(date = new Date()) {
 }
 
 cron.schedule('10 2 * * 1-5', () => {
-  console.log('[CRON] Mengisi tidak_hadir untuk hari ini...');
-  const today = getLocalDateString();
+  console.log('[CRON] Test - Mengisi tidak_hadir untuk kemarin...');
+  
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const today = getLocalDateString(yesterday);
 
   db.query(
     `SELECT DISTINCT up.user_id, up.period_id
