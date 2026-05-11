@@ -233,16 +233,7 @@ connection.connect(async (err) => {
 
           console.log("\nSeeding default data...");
 
-          // ── 1. Periode ────────────────────────────────────────────────────
-          await query(`
-            INSERT INTO periods (name, start_date, end_date, is_active)
-            SELECT * FROM (
-              SELECT 'Kepengurusan 2025/2026', '2025-01-01', '2026-12-31', TRUE
-            ) AS tmp
-            WHERE NOT EXISTS (
-              SELECT id FROM periods WHERE name = 'Kepengurusan 2025/2026'
-            )
-          `);
+          
           const periods         = await query(`SELECT id FROM periods LIMIT 1`);
           const defaultPeriodId = periods[0]?.id;
           console.log("  ✓ Default period seeded");
@@ -420,9 +411,7 @@ connection.connect(async (err) => {
 
           // ✅ KODE BARU - aman dari duplicate
 const defaultUsers = [
-  { name: 'Super Admin BEM', nim: '0000000001', username: 'superadmin', password: superadminPassword },
-  { name: 'Admin BEM',       nim: '0000000002', username: 'admin',      password: adminPassword      },
-  { name: 'Olivia Delisa',   nim: '2311527001', username: 'olivia',     password: userPassword       },
+  { name: 'Super Admin BEM', nim: '0000000001', username: 'superadmin', password: superadminPassword },      
 ];
 
 for (const u of defaultUsers) {
