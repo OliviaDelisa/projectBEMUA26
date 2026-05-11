@@ -26,17 +26,16 @@ function hitungJarak(lat1, lng1, lat2, lng2) {
 // ── Helper: validasi hari & jam absensi sekre (WIB) ─────────────
 // Server bisa berjalan di timezone apapun, jadi kita konversi ke WIB (UTC+7) secara eksplisit.
 function cekWaktuAbsensiSekre(now = new Date()) {
-  const nowWIB        = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-  const hariWIB       = nowWIB.getUTCDay();
-  const totalMenitWIB = nowWIB.getUTCHours() * 60 + nowWIB.getUTCMinutes();
+  const hari       = now.getDay();
+  const totalMenit = now.getHours() * 60 + now.getMinutes();
 
-  if (hariWIB === 0 || hariWIB === 6) {
+  if (hari === 0 || hari === 6) {
     return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
   }
-  if (totalMenitWIB < 8 * 60) {
+  if (totalMenit < 8 * 60) {
     return { bisa: false, pesan: "Absensi sekre belum dibuka (mulai pukul 08.00 WIB)" };
   }
-  if (totalMenitWIB >= 18 * 60) {
+  if (totalMenit >= 18 * 60) {
     return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00 WIB)" };
   }
   return { bisa: true, pesan: null };
