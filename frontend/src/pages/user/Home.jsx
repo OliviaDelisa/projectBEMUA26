@@ -846,12 +846,13 @@ export default function Home() {
                   {history.map((item, idx) => {
                     // FIX: pakai parseDBDateTime untuk semua parsing waktu
                     // Untuk tidak hadir sekre, check_in_time null → fallback ke date
-                    const dtStr   = item.check_in_time || item.date;
-                    const d       = dtStr ? parseDBDateTime(dtStr) : null;
-                    const timeStr = item.check_in_time
+                  const dtStr      = item.check_in_time || item.date;
+                    const d          = dtStr ? parseDBDateTime(dtStr) : null;
+                    const timeStr    = item.check_in_time
                       ? parseDBDateTime(item.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-                      : "-";
+                      : null;
                     const dateStr    = d && !isNaN(d) ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
+                    const hariStr    = d && !isNaN(d) ? hariList[d.getDay()] : "";
                     const isKegiatan = item._jenis === "kegiatan";
                     const isHadir    = item.status === "hadir";
                     const fotoSrc    = item.selfie_photo
@@ -874,8 +875,8 @@ export default function Home() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-gray-700">
-                                {isHadir ? `${timeStr} · ` : ""}{dateStr}
+                               <p className="text-xs font-semibold text-gray-700">
+                                {hariStr && `${hariStr}, `}{dateStr}{timeStr ? ` · ${timeStr}` : ""}
                               </p>
                               <span className={`text-xs font-semibold shrink-0 ${isHadir ? "text-green-500" : "text-red-400"}`}>
                                 {isHadir ? "Hadir" : "Tidak Hadir"}
