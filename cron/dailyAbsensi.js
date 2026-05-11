@@ -8,7 +8,7 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-cron.schedule('1 18 * * 1-5', () => {
+cron.schedule('10 2 * * 1-5', () => {
   console.log('[CRON] Mengisi tidak_hadir untuk hari ini...');
   const today = getLocalDateString();
 
