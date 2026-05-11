@@ -1,12 +1,33 @@
 const db = require("../db/db");
 const crypto = require("crypto");
 
+// ── Helper: parse datetime string "YYYY-MM-DD HH:mm" sebagai WIB (UTC+7) ──
+// Mencegah Node.js salah interpretasi sebagai UTC
+const parseWIB = (dtStr) => {
+    return new Date(dtStr.replace(" ", "T") + ":00+07:00");
+};
+
+// ── Helper: ambil "hari ini" dalam zona WIB, jam 00:00:00 ──
+const todayWIB = () => {
+    const now = new Date();
+    // Konversi ke WIB lalu ambil tanggal-nya saja
+    const wibStr = now.toLocaleString("en-CA", {
+        timeZone: "Asia/Jakarta",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }); // → "2025-05-11"
+    return new Date(wibStr + "T00:00:00+07:00");
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 1. Ambil semua kegiatan untuk admin
+// ─────────────────────────────────────────────────────────────────────────────
 exports.getAllActivities = (req, res) => {
     const query = `
         SELECT a.*, 
-        (SELECT COUNT(*) FROM activity_attendance WHERE activity_id = a.id AND status = 'hadir') as hadir,
-        (SELECT COUNT(*) FROM activity_attendance WHERE activity_id = a.id) as peserta
+            (SELECT COUNT(*) FROM activity_attendance WHERE activity_id = a.id AND status = 'hadir') AS hadir,
+            (SELECT COUNT(*) FROM activity_attendance WHERE activity_id = a.id) AS peserta
         FROM activities a 
         ORDER BY a.start_datetime DESC`;
 
@@ -16,27 +37,39 @@ exports.getAllActivities = (req, res) => {
     });
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
 // 2. Buat kegiatan baru
+// ─────────────────────────────────────────────────────────────────────────────
 exports.createActivity = (req, res) => {
-    const { title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, participant_ids, metode } = req.body;
+    const {
+        title, description, location_name,
+        latitude, longitude, radius_meters,
+        start_datetime, end_datetime,
+        participant_ids, metode
+    } = req.body;
 
+    // ── Validasi: Nama Kegiatan ──────────────────────────────────────────────
     if (!title || title.trim() === "") {
         return res.status(400).json({ message: "Nama kegiatan wajib diisi." });
     }
     if (title.trim().length > 50) {
         return res.status(400).json({ message: "Nama kegiatan maksimal 50 karakter." });
     }
+
+    // ── Validasi: Deskripsi ──────────────────────────────────────────────────
     if (description && description.trim().length > 150) {
         return res.status(400).json({ message: "Deskripsi maksimal 150 karakter." });
     }
+
+    // ── Validasi: Tanggal ────────────────────────────────────────────────────
     if (!start_datetime || !end_datetime) {
         return res.status(400).json({ message: "Tanggal mulai dan selesai wajib diisi." });
     }
 
-    const startDate = new Date(start_datetime);
-    const endDate   = new Date(end_datetime);
-    const today     = new Date();
-    today.setHours(0, 0, 0, 0);
+    // FIX: Parse sebagai WIB agar tidak meleset 7 jam
+    const startDate = parseWIB(start_datetime);
+    const endDate   = parseWIB(end_datetime);
+    const today     = todayWIB();
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({ message: "Format tanggal tidak valid." });
@@ -47,6 +80,8 @@ exports.createActivity = (req, res) => {
     if (endDate < startDate) {
         return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
     }
+
+    // ── Validasi: Lokasi & Koordinat ─────────────────────────────────────────
     if (!location_name || location_name.trim() === "") {
         return res.status(400).json({ message: "Nama lokasi wajib diisi." });
     }
@@ -56,8 +91,9 @@ exports.createActivity = (req, res) => {
 
     const kode_qr = "KEG-" + crypto.randomBytes(2).toString("hex").toUpperCase();
 
-    const query = `INSERT INTO activities 
-        (title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, kode_qr, metode) 
+    const query = `
+        INSERT INTO activities 
+            (title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, kode_qr, metode) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const values = [
@@ -70,7 +106,7 @@ exports.createActivity = (req, res) => {
         start_datetime,
         end_datetime,
         kode_qr,
-        metode || 'keduanya'
+        metode || "keduanya",
     ];
 
     db.query(query, values, (err, result) => {
@@ -78,24 +114,28 @@ exports.createActivity = (req, res) => {
 
         const activityId = result.insertId;
 
-        // Otomatis mendaftarkan peserta yang dipilih
-        // Status default = 'tidak_hadir' yang berarti ALFA — belum melakukan absen
+        // Daftarkan semua participant_ids (termasuk admin & superadmin)
+        // Status default = 'tidak_hadir' → tampil sebagai Alfa sampai absen
         if (participant_ids && participant_ids.length > 0) {
-            const attendanceValues = participant_ids.map(uid => [activityId, uid, 'tidak_hadir']);
-            db.query(`INSERT INTO activity_attendance (activity_id, user_id, status) VALUES ?`, [attendanceValues], (err2) => {
-                if (err2) console.error("Gagal insert peserta:", err2);
-            });
+            const attendanceValues = participant_ids.map((uid) => [activityId, uid, "tidak_hadir"]);
+            db.query(
+                `INSERT INTO activity_attendance (activity_id, user_id, status) VALUES ?`,
+                [attendanceValues],
+                (err2) => {
+                    if (err2) console.error("Gagal insert peserta:", err2);
+                }
+            );
         }
 
         res.status(201).json({ message: "Kegiatan berhasil dibuat", id: activityId, kode: kode_qr });
     });
 };
 
-// 3. Update kegiatan — mendukung edit untuk status mendatang, berlangsung, dan selesai
-// Perbedaan utama dari create:
-//   - Tidak ada validasi "start_datetime tidak boleh sebelum hari ini"
-//     karena kegiatan yang sudah berlangsung/selesai pasti sudah lewat hari ini.
-//   - Validasi end_datetime >= start_datetime tetap berlaku.
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Update kegiatan
+// Catatan: tidak validasi startDate >= today karena kegiatan berlangsung/selesai
+// sudah pasti melewati hari ini — frontend mengunci field tersebut.
+// ─────────────────────────────────────────────────────────────────────────────
 exports.updateActivity = (req, res) => {
     const { id } = req.params;
     const {
@@ -104,7 +144,7 @@ exports.updateActivity = (req, res) => {
         start_datetime, end_datetime
     } = req.body;
 
-    // ── VALIDASI: Nama Kegiatan ─────────────────────────────────────────────
+    // ── Validasi: Nama Kegiatan ──────────────────────────────────────────────
     if (!title || title.trim() === "") {
         return res.status(400).json({ message: "Nama kegiatan wajib diisi." });
     }
@@ -112,44 +152,40 @@ exports.updateActivity = (req, res) => {
         return res.status(400).json({ message: "Nama kegiatan maksimal 50 karakter." });
     }
 
-    // ── VALIDASI: Deskripsi ─────────────────────────────────────────────────
+    // ── Validasi: Deskripsi ──────────────────────────────────────────────────
     if (description && description.trim().length > 150) {
         return res.status(400).json({ message: "Deskripsi maksimal 150 karakter." });
     }
 
-    // ── VALIDASI: Tanggal ───────────────────────────────────────────────────
+    // ── Validasi: Tanggal ────────────────────────────────────────────────────
     if (!start_datetime || !end_datetime) {
         return res.status(400).json({ message: "Tanggal mulai dan selesai wajib diisi." });
     }
 
-    const startDate = new Date(start_datetime);
-    const endDate   = new Date(end_datetime);
+    // FIX: Parse sebagai WIB agar validasi endDate >= startDate tidak meleset
+    const startDate = parseWIB(start_datetime);
+    const endDate   = parseWIB(end_datetime);
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({ message: "Format tanggal tidak valid." });
     }
-
-    // Sengaja tidak memvalidasi startDate >= today di sini,
-    // karena saat edit kegiatan berlangsung/selesai, tanggal mulai dikirim
-    // apa adanya (sudah lewat) dari frontend yang mengunci field tersebut.
     if (endDate < startDate) {
         return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
     }
 
-    // ── VALIDASI: Nama Lokasi ───────────────────────────────────────────────
+    // ── Validasi: Lokasi & Koordinat ─────────────────────────────────────────
     if (!location_name || location_name.trim() === "") {
         return res.status(400).json({ message: "Nama lokasi wajib diisi." });
     }
-
-    // ── VALIDASI: Koordinat ─────────────────────────────────────────────────
     if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
         return res.status(400).json({ message: "Koordinat lokasi wajib ditentukan." });
     }
 
-    const query = `UPDATE activities SET 
-        title = ?, description = ?, location_name = ?, 
-        latitude = ?, longitude = ?, radius_meters = ?, 
-        start_datetime = ?, end_datetime = ? 
+    const query = `
+        UPDATE activities SET 
+            title = ?, description = ?, location_name = ?, 
+            latitude = ?, longitude = ?, radius_meters = ?, 
+            start_datetime = ?, end_datetime = ? 
         WHERE id = ?`;
 
     const values = [
@@ -161,7 +197,7 @@ exports.updateActivity = (req, res) => {
         radius_meters || 100,
         start_datetime,
         end_datetime,
-        id
+        id,
     ];
 
     db.query(query, values, (err, result) => {
@@ -172,7 +208,9 @@ exports.updateActivity = (req, res) => {
     });
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
 // 4. Hapus kegiatan
+// ─────────────────────────────────────────────────────────────────────────────
 exports.deleteActivity = (req, res) => {
     const { id } = req.params;
     db.query(`DELETE FROM activities WHERE id = ?`, [id], (err, result) => {
@@ -181,12 +219,13 @@ exports.deleteActivity = (req, res) => {
     });
 };
 
-// 5. Ambil detail absensi per kegiatan (Untuk Panel Kelola Absensi / Drawer)
-// Logika alfa:
-//   - status = 'hadir'       → staf sudah melakukan absen (hadir)
-//   - status = 'tidak_hadir' → staf BELUM / TIDAK melakukan absen (alfa)
-// JOIN ke user_periods untuk ambil kementerian (bukan users.kementerian)
-// 5. Ambil detail absensi per kegiatan (Untuk Panel Kelola Absensi / Drawer)
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Ambil detail absensi per kegiatan (untuk drawer Kelola Absensi)
+// Logika:
+//   status = 'hadir'        → sudah absen (hadir)
+//   status = 'tidak_hadir'  → belum/tidak absen (alfa)
+// JOIN ke user_periods untuk ambil kementerian aktif
+// ─────────────────────────────────────────────────────────────────────────────
 exports.getActivityAttendance = (req, res) => {
     const { id } = req.params;
 
@@ -212,7 +251,9 @@ exports.getActivityAttendance = (req, res) => {
     });
 };
 
-// 6. Scan QR absensi kegiatan
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Scan QR / Selfie absensi kegiatan (dipanggil dari aplikasi mobile/web user)
+// ─────────────────────────────────────────────────────────────────────────────
 exports.scanAttendance = (req, res) => {
     const { kode_qr, user_id, latitude, longitude } = req.body;
 
@@ -232,19 +273,23 @@ exports.scanAttendance = (req, res) => {
         }
 
         const activity = activities[0];
-        const now   = new Date();
-        const start = new Date(activity.start_datetime);
-        const end   = new Date(activity.end_datetime);
 
+        // FIX: Parse datetime DB sebagai WIB (bukan UTC)
+        const now   = new Date();
+        const start = parseWIB(activity.start_datetime);
+        const end   = parseWIB(activity.end_datetime);
+
+        // Toleransi absen: bisa dilakukan 30 menit sebelum kegiatan mulai
         const startWithTolerance = new Date(start.getTime() - 30 * 60 * 1000);
+
         if (now < startWithTolerance) {
-            return res.status(400).json({ 
-                message: `Kegiatan belum dimulai. Absensi dibuka pada ${start.toLocaleString('id-ID')}.` 
+            return res.status(400).json({
+                message: `Kegiatan belum dimulai. Absensi dibuka pada ${start.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}.`
             });
         }
         if (now > end) {
-            return res.status(400).json({ 
-                message: "Kegiatan sudah selesai. Absensi tidak dapat dilakukan." 
+            return res.status(400).json({
+                message: "Kegiatan sudah selesai. Absensi tidak dapat dilakukan."
             });
         }
 
@@ -257,16 +302,16 @@ exports.scanAttendance = (req, res) => {
             if (err2) return res.status(500).json({ message: "Gagal memeriksa data peserta.", error: err2 });
 
             if (rows.length === 0) {
-                return res.status(403).json({ 
-                    message: "Anda tidak terdaftar sebagai peserta kegiatan ini." 
+                return res.status(403).json({
+                    message: "Anda tidak terdaftar sebagai peserta kegiatan ini."
                 });
             }
 
             const attendance = rows[0];
 
-            if (attendance.status === 'hadir') {
-                return res.status(409).json({ 
-                    message: "Anda sudah tercatat hadir pada kegiatan ini." 
+            if (attendance.status === "hadir") {
+                return res.status(409).json({
+                    message: "Anda sudah tercatat hadir pada kegiatan ini."
                 });
             }
 
@@ -284,10 +329,10 @@ exports.scanAttendance = (req, res) => {
                     return res.status(500).json({ message: "Gagal memperbarui absensi." });
                 }
 
-                res.json({ 
+                res.json({
                     message: "Absensi berhasil dicatat!",
                     kegiatan: activity.title,
-                    check_in_time: new Date().toISOString()
+                    check_in_time: new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
                 });
             });
         });

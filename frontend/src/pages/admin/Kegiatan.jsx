@@ -61,16 +61,19 @@ const formatReverseResult = (data) => {
 };
 
 const formatDateTime = (dtStr) => {
-  const d = new Date(dtStr);
+  // FIX: Tambah .replace(" ", "T") agar konsisten di semua browser
+  const d = new Date(dtStr.replace(" ", "T"));
   const tgl = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   const jam = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
   return { tgl, jam };
 };
 
+// FIX: getStatus sekarang pakai .replace(" ", "T") agar parsing datetime konsisten
+// di semua browser — tanpa ini beberapa browser bisa salah parse "YYYY-MM-DD HH:mm"
 const getStatus = (k) => {
   const now = new Date();
-  const start = new Date(k.start_datetime);
-  const end = new Date(k.end_datetime);
+  const start = new Date(k.start_datetime.replace(" ", "T"));
+  const end   = new Date(k.end_datetime.replace(" ", "T"));
   if (now < start) return "mendatang";
   if (now >= start && now <= end) return "berlangsung";
   return "selesai";
@@ -89,7 +92,6 @@ const StatusBadge = ({ status }) => {
   const s = config[status] || config.selesai;
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide ${s.cls}`}>
-      
       {s.label}
     </span>
   );
@@ -226,11 +228,14 @@ export default function ManajemenKegiatan() {
     finally { setLoading(false); }
   };
 
+  // FIX: Ambil SEMUA user aktif tanpa filter role.
+  // Admin dan superadmin adalah user juga, harus masuk sebagai peserta kegiatan.
   const fetchMembers = async () => {
     try {
       const res = await fetch(`${API}/users`);
       const data = await res.json();
-      setMemberList(data.filter((u) => u.role === "user"));
+      // Tidak difilter berdasarkan role — semua akun aktif masuk sebagai peserta
+      setMemberList(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); }
   };
 
@@ -435,12 +440,19 @@ export default function ManajemenKegiatan() {
   const handleEditOpen = (k) => {
     const status = getStatus(k);
     if (status === "selesai") return;
-    const start = new Date(k.start_datetime);
-    const end = new Date(k.end_datetime);
+    // FIX: parse dengan .replace(" ", "T") agar konsisten
+    const start = new Date(k.start_datetime.replace(" ", "T"));
+    const end   = new Date(k.end_datetime.replace(" ", "T"));
     const padTime = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     const latVal = parseFloat(k.latitude);
     const lngVal = parseFloat(k.longitude);
-    setForm({ nama: k.title, desc: k.description, tglMulai: toLocalDateString(start), tglSelesai: toLocalDateString(end), jamMulai: padTime(start), jamSelesai: padTime(end), lokasi: k.location_name, radius: k.radius_meters, lat: latVal, lng: lngVal });
+    setForm({
+      nama: k.title, desc: k.description,
+      tglMulai: toLocalDateString(start), tglSelesai: toLocalDateString(end),
+      jamMulai: padTime(start), jamSelesai: padTime(end),
+      lokasi: k.location_name, radius: k.radius_meters,
+      lat: latVal, lng: lngVal,
+    });
     setCoordInput({ lat: latVal.toFixed(6), lng: lngVal.toFixed(6) });
     setCoordError("");
     setFormErrors({});
@@ -459,18 +471,29 @@ export default function ManajemenKegiatan() {
     }
     const errors = validateStep2();
     if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+
     const payload = {
-      title: form.nama, description: form.desc, location_name: form.lokasi,
-      latitude: form.lat, longitude: form.lng, radius_meters: form.radius,
+      title: form.nama,
+      description: form.desc,
+      location_name: form.lokasi,
+      latitude: form.lat,
+      longitude: form.lng,
+      radius_meters: form.radius,
       metode: "selfie",
       start_datetime: `${form.tglMulai} ${form.jamMulai}`,
-      end_datetime: `${form.tglSelesai} ${form.jamSelesai}`,
+      end_datetime:   `${form.tglSelesai} ${form.jamSelesai}`,
+      // FIX: Kirim SEMUA user (termasuk admin & superadmin) sebagai peserta
       participant_ids: memberList.map((m) => m.id),
     };
+
     try {
       const method = isEditing ? "PUT" : "POST";
-      const url = isEditing ? `${API}/activities/${isEditing}` : `${API}/activities`;
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const url    = isEditing ? `${API}/activities/${isEditing}` : `${API}/activities`;
+      const res    = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const result = await res.json();
       if (!res.ok) { alert(result.message || "Gagal menyimpan kegiatan"); return; }
       setShowModal(false);
@@ -493,20 +516,22 @@ export default function ManajemenKegiatan() {
   const filteredAbsensiDrawer = useMemo(() => {
     if (!drawerAbsenFilter) return absensiDetail;
     if (drawerAbsenFilter === "hadir") return absensiDetail.filter((a) => a.status === "hadir");
-    if (drawerAbsenFilter === "alfa") return absensiDetail.filter((a) => a.status !== "hadir");
+    if (drawerAbsenFilter === "alfa")  return absensiDetail.filter((a) => a.status !== "hadir");
     return absensiDetail;
   }, [absensiDetail, drawerAbsenFilter]);
 
   const filteredMemberModalData = useMemo(() => {
     if (!memberModal) return [];
     if (memberModal.filter === "hadir") return memberModalData.filter((a) => a.status === "hadir");
-    if (memberModal.filter === "alfa") return memberModalData.filter((a) => a.status !== "hadir");
+    if (memberModal.filter === "alfa")  return memberModalData.filter((a) => a.status !== "hadir");
     return memberModalData;
   }, [memberModal, memberModalData]);
 
   const minTglSelesai = form.tglMulai || todayStr;
   const charLen = (s) => s.length;
-  const charWarn = (len, max) => len > max ? "text-red-500 font-semibold" : len >= max * 0.85 ? "text-amber-500 font-semibold" : "text-gray-400";
+  const charWarn = (len, max) =>
+    len > max ? "text-red-500 font-semibold" :
+    len >= max * 0.85 ? "text-amber-500 font-semibold" : "text-gray-400";
 
   // ── Selfie preview ────────────────────────────────────────────────────────
 
@@ -528,7 +553,7 @@ export default function ManajemenKegiatan() {
   // ═════════════════════════════════════════════════════════════════════════
 
   return (
-  <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden min-h-0">
         <Topbar title="Manajemen Kegiatan" />
@@ -545,7 +570,7 @@ export default function ManajemenKegiatan() {
               setCurrentStep(1); setShowModal(true);
             }}
             className="inline-flex items-center gap-2 h-9 px-4 text-white text-sm font-medium rounded-lg transition"
-              style={{ backgroundColor: "#00923D" }}
+            style={{ backgroundColor: "#00923D" }}
           >
             <Plus size={15} /> Buat Kegiatan
           </button>
@@ -555,10 +580,10 @@ export default function ManajemenKegiatan() {
 
           {/* Stat cards */}
           <div className="grid grid-cols-4 gap-4">
-            <StatBox label="Total Kegiatan"  value={stats.total}       sub="Semua kegiatan"       icon={<LayoutGrid size={18}/>} color=""      active={activeFilter === "semua"}        onClick={() => setActiveFilter("semua")} />
-            <StatBox label="Mendatang"        value={stats.mendatang}   sub="Segera dilaksanakan"  icon={<Calendar   size={18}/>} color="blue"  active={activeFilter === "mendatang"}    onClick={() => setActiveFilter("mendatang")} />
-            <StatBox label="Berlangsung"      value={stats.berlangsung} sub="Sedang berjalan"      icon={<Clock      size={18}/>} color="amber" active={activeFilter === "berlangsung"}  onClick={() => setActiveFilter("berlangsung")} />
-            <StatBox label="Selesai"          value={stats.selesai}     sub="Kegiatan lampau"      icon={<CheckCircle size={18}/>} color="rose" active={activeFilter === "selesai"}      onClick={() => setActiveFilter("selesai")} />
+            <StatBox label="Total Kegiatan"  value={stats.total}       sub="Semua kegiatan"       icon={<LayoutGrid  size={18}/>} color=""      active={activeFilter === "semua"}       onClick={() => setActiveFilter("semua")} />
+            <StatBox label="Mendatang"        value={stats.mendatang}   sub="Segera dilaksanakan"  icon={<Calendar    size={18}/>} color="blue"  active={activeFilter === "mendatang"}   onClick={() => setActiveFilter("mendatang")} />
+            <StatBox label="Berlangsung"      value={stats.berlangsung} sub="Sedang berjalan"      icon={<Clock       size={18}/>} color="amber" active={activeFilter === "berlangsung"} onClick={() => setActiveFilter("berlangsung")} />
+            <StatBox label="Selesai"          value={stats.selesai}     sub="Kegiatan lampau"      icon={<CheckCircle size={18}/>} color="rose"  active={activeFilter === "selesai"}     onClick={() => setActiveFilter("selesai")} />
           </div>
 
           {/* Kegiatan list */}
@@ -588,10 +613,10 @@ export default function ManajemenKegiatan() {
                   {filteredKegiatan.map((k) => {
                     const s = getStatus(k);
                     const jmlPeserta = Number(k.peserta) || 0;
-                    const jmlHadir = Number(k.hadir) || 0;
-                    const jmlAlfa = jmlPeserta - jmlHadir;
-                    const startDT = formatDateTime(k.start_datetime);
-                    const endDT = formatDateTime(k.end_datetime);
+                    const jmlHadir   = Number(k.hadir)   || 0;
+                    const jmlAlfa    = jmlPeserta - jmlHadir;
+                    const startDT    = formatDateTime(k.start_datetime);
+                    const endDT      = formatDateTime(k.end_datetime);
 
                     return (
                       <div key={k.id} className="flex flex-col border border-gray-200 rounded-xl bg-white hover:-translate-y-0.5 hover:shadow-md transition-all">
@@ -602,18 +627,18 @@ export default function ManajemenKegiatan() {
                             <StatusBadge status={s} />
                           </div>
                           <div className="grid grid-cols-[12px_48px_1fr] gap-x-2 gap-y-2 items-center text-xs text-gray-500">
-                        <Calendar size={12} className="text-gray-400" />
-                        <span className="text-gray-400">Mulai</span>
-                        <span className="text-gray-600">{startDT.tgl} {startDT.jam}</span>
+                            <Calendar size={12} className="text-gray-400" />
+                            <span className="text-gray-400">Mulai</span>
+                            <span className="text-gray-600">{startDT.tgl} {startDT.jam}</span>
 
-                        <Clock size={12} className="text-gray-400" />
-                        <span className="text-gray-400">Selesai</span>
-                        <span className="text-gray-600">{endDT.tgl} {endDT.jam}</span>
+                            <Clock size={12} className="text-gray-400" />
+                            <span className="text-gray-400">Selesai</span>
+                            <span className="text-gray-600">{endDT.tgl} {endDT.jam}</span>
 
-                        <MapPin size={12} className="text-gray-400" />
-                        <span className="text-gray-400">Lokasi</span>
-                        <span className="text-gray-600 truncate">{k.location_name}</span>
-                      </div>
+                            <MapPin size={12} className="text-gray-400" />
+                            <span className="text-gray-400">Lokasi</span>
+                            <span className="text-gray-600 truncate">{k.location_name}</span>
+                          </div>
                         </div>
 
                         {/* Quick stats */}
@@ -621,13 +646,12 @@ export default function ManajemenKegiatan() {
                           {[
                             { label: "Total", val: jmlPeserta, filter: "semua", cls: "text-gray-500 bg-white border-gray-200 hover:border-gray-300" },
                             { label: "Hadir", val: jmlHadir,   filter: "hadir", cls: "text-emerald-600 bg-emerald-50 border-emerald-200 hover:border-emerald-300" },
-                            { label: "Alfa",  val: jmlAlfa,    filter: "alfa", cls: "text-red-500 bg-red-50 border-red-200 hover:border-red-300" },
+                            { label: "Alfa",  val: jmlAlfa,    filter: "alfa",  cls: "text-red-500 bg-red-50 border-red-200 hover:border-red-300" },
                           ].map((item) => (
                             <button key={item.label}
-                              onClick={() => handleOpenMemberModal(k.id, item.filter, `${item.label === "Total" ? "Semua Anggota - " : item.label === "Hadir" ? "" : ""} ${k.title}`)}
+                              onClick={() => handleOpenMemberModal(k.id, item.filter, `${item.label === "Total" ? "Semua Anggota - " : ""} ${k.title}`)}
                               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium border rounded-lg transition ${item.cls}`}
                             >
-                              {item.icon}
                               <span className="font-semibold tabular-nums">{item.val}</span>
                               <span className="text-[10px] opacity-70">{item.label}</span>
                             </button>
@@ -711,7 +735,7 @@ export default function ManajemenKegiatan() {
                     </div>
                     {/* Deskripsi */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Deskripsi <span className="normal-case text-gray-400 font-normal"></span></label>
+                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Deskripsi</label>
                       <textarea className={`${inputCls(formErrors.desc)} h-20 py-2 resize-none`} placeholder="Deskripsi singkat..." maxLength={150} value={form.desc}
                         onChange={(e) => { setForm({ ...form, desc: e.target.value }); setFormErrors((p) => ({ ...p, desc: null })); }} />
                       <div className="flex justify-between mt-1">
@@ -722,10 +746,10 @@ export default function ManajemenKegiatan() {
                     {/* Tanggal & Jam */}
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: "Tanggal Mulai", key: "tglMulai", type: "date", locked: isStartLocked, min: isStartLocked ? undefined : todayStr },
-                        { label: "Jam Mulai",      key: "jamMulai", type: "time", locked: isStartLocked },
-                        { label: "Tanggal Selesai", key: "tglSelesai", type: "date", min: minTglSelesai },
-                        { label: "Jam Selesai",    key: "jamSelesai", type: "time" },
+                        { label: "Tanggal Mulai",  key: "tglMulai",  type: "date", locked: isStartLocked, min: isStartLocked ? undefined : todayStr },
+                        { label: "Jam Mulai",       key: "jamMulai",  type: "time", locked: isStartLocked },
+                        { label: "Tanggal Selesai", key: "tglSelesai",type: "date", min: minTglSelesai },
+                        { label: "Jam Selesai",     key: "jamSelesai",type: "time" },
                       ].map(({ label, key, type, locked, min }) => (
                         <div key={key}>
                           <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
@@ -845,7 +869,7 @@ export default function ManajemenKegiatan() {
                   className="h-9 px-4 text-sm text-gray-600 border border-gray-200 rounded-lg hover:border-gray-300 transition">
                   Kembali
                 </button>
-               <button
+                <button
                   disabled={currentStep === 1 ? !isStep1Valid : !isStep2Valid}
                   onClick={handleSave}
                   className="h-9 px-5 text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition"
@@ -861,7 +885,7 @@ export default function ManajemenKegiatan() {
         {/* ══ DETAIL DRAWER ════════════════════════════════════════════════ */}
         {detailId && (
           <div className="fixed inset-0 bg-black/40 z-40 flex justify-end" onClick={(e) => e.target === e.currentTarget && setDetailId(null)}>
-            <div className="w-[700px] max-w-full bg-white h-full flex flex-col shadow-2xl animate-[slideIn_0.3s_ease-out]"
+            <div className="w-[700px] max-w-full bg-white h-full flex flex-col shadow-2xl"
               style={{ animation: "slideInRight 0.25s ease-out" }}>
 
               {/* Drawer header */}
@@ -872,14 +896,22 @@ export default function ManajemenKegiatan() {
                     <div className="text-lg font-semibold text-gray-800 truncate">{activeKegiatan?.title}</div>
                     {activeKegiatan && (
                       <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1.5"><MapPin size={11} className="text-gray-400" />{activeKegiatan.location_name}</span>
-                        <span className="flex items-center gap-1.5"><Calendar size={11} className="text-gray-400" />
-                          {new Date(activeKegiatan.start_datetime).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                          {" "}{new Date(activeKegiatan.start_datetime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                        <span className="flex items-center gap-1.5">
+                          <MapPin size={11} className="text-gray-400" />
+                          {activeKegiatan.location_name}
                         </span>
-                        <span className="flex items-center gap-1.5"><Clock size={11} className="text-gray-400" />
-                          {new Date(activeKegiatan.end_datetime).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                          {" "}{new Date(activeKegiatan.end_datetime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                        <span className="flex items-center gap-1.5">
+                          <Calendar size={11} className="text-gray-400" />
+                          {/* FIX: .replace(" ", "T") untuk konsistensi parsing */}
+                          {new Date(activeKegiatan.start_datetime.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                          {" "}
+                          {new Date(activeKegiatan.start_datetime.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Clock size={11} className="text-gray-400" />
+                          {new Date(activeKegiatan.end_datetime.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                          {" "}
+                          {new Date(activeKegiatan.end_datetime.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
                         </span>
                       </div>
                     )}
@@ -968,7 +1000,9 @@ export default function ManajemenKegiatan() {
                           <td className="px-5 py-3"><StatusBadge status={a.status === "hadir" ? "hadir" : "alfa"} /></td>
                           <td className="px-5 py-3">{renderFotoSelfie(a.selfie_photo)}</td>
                           <td className="px-5 py-3 text-xs font-mono text-gray-500">
-                            {a.check_in_time ? new Date(a.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : <span className="italic text-gray-300">–</span>}
+                            {a.check_in_time
+                              ? new Date(a.check_in_time.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+                              : <span className="italic text-gray-300">–</span>}
                           </td>
                         </tr>
                       ))}
@@ -1025,7 +1059,7 @@ export default function ManajemenKegiatan() {
         {/* ══ PREVIEW FOTO ════════════════════════════════════════════════ */}
         {previewPhoto && (
           <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-5" onClick={() => setPreviewPhoto(null)}>
-           <div className="relative max-w-lg w-full bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative max-w-lg w-full bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <img src={previewPhoto} alt="Selfie absensi" className="w-full block" />
               <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
                 <span className="flex items-center gap-2 text-xs text-gray-500"><Camera size={13} /> Bukti foto selfie absensi</span>
@@ -1040,12 +1074,9 @@ export default function ManajemenKegiatan() {
         {/* ══ MINI MODAL ANGGOTA ══════════════════════════════════════════ */}
         {memberModal && (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-5" onClick={() => setMemberModal(null)}>
-            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
                 <div>
-                  <div className="text-xs text-gray-400 mb-0.5">
-                    {memberModal.filter === "semua" ? "" : memberModal.filter === "hadir" ? "" : ""}
-                  </div>
                   <div className="text-sm font-semibold text-gray-800">{memberModal.title}</div>
                 </div>
                 <button onClick={() => setMemberModal(null)} className="text-gray-400 hover:text-gray-600 transition"><X size={16} /></button>
@@ -1076,7 +1107,9 @@ export default function ManajemenKegiatan() {
                           {memberModal.filter !== "alfa" && <td className="px-5 py-3">{renderFotoSelfie(a.selfie_photo)}</td>}
                           {memberModal.filter !== "alfa" && (
                             <td className="px-5 py-3 font-mono text-gray-500">
-                              {a.check_in_time ? new Date(a.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : <span className="italic text-gray-300">–</span>}
+                              {a.check_in_time
+                                ? new Date(a.check_in_time.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+                                : <span className="italic text-gray-300">–</span>}
                             </td>
                           )}
                         </tr>
@@ -1087,7 +1120,6 @@ export default function ManajemenKegiatan() {
               </div>
               <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
                 <span className="text-xs text-gray-400">{filteredMemberModalData.length} anggota</span>
-                
               </div>
             </div>
           </div>
@@ -1095,7 +1127,7 @@ export default function ManajemenKegiatan() {
 
         {/* ══ KONFIRMASI HAPUS ════════════════════════════════════════════ */}
         {confirmDelete && (
-          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-5 animate-[fadeIn_0.15s_ease]" onClick={() => setConfirmDelete(null)}>
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-5" onClick={() => setConfirmDelete(null)}>
             <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-7 pt-8 pb-6 text-center">
                 <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
