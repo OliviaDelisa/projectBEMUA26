@@ -4,7 +4,7 @@ import API from "../../config/api";
 
 const SEKRE_LAT    = -0.916996;
 const SEKRE_LNG    = 100.454804;
-const RADIUS_METER = 20000;
+const RADIUS_METER = 50;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -77,7 +77,7 @@ export default function Home() {
     const totalMenit = now.getHours() * 60 + now.getMinutes();
     if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
     if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
-    if (totalMenit >= 20 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
+    if (totalMenit >= 18 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
     return { bisa: true, pesan: null };
   };
 
