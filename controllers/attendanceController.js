@@ -237,7 +237,7 @@ exports.checkInActivity = (req, res) => {
 
       const activity  = activities[0];
       const now       = new Date();
-      const startTime = new Date(activity.start_datetime);
+      const startTime = new Date(activity.start_datetime.replace(" ", "T") + '+07:00');
 
       if (now < startTime) {
         return res.status(400).json({

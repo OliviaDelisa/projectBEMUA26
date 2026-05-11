@@ -9,7 +9,7 @@ const db = mysql.createPool({
   waitForConnections: true,
   connectionLimit:    10,   // maksimal 10 koneksi berjalan bersamaan
   queueLimit:         0,
-   timezone:           '+00:00',
+  
 });
 
 // Test koneksi saat pertama kali file ini di-require

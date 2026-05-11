@@ -1,24 +1,27 @@
 const db = require("../db/db");
 const crypto = require("crypto");
 
-// ── Helper: parse datetime string "YYYY-MM-DD HH:mm" sebagai WIB (UTC+7) ──
-// Mencegah Node.js salah interpretasi sebagai UTC
-const parseWIB = (dtStr) => {
-    return new Date(dtStr.replace(" ", "T") + ":00+07:00");
+// ── Helper: parse datetime string "YYYY-MM-DD HH:mm" ──────────────────────
+// .replace(" ", "T") agar konsisten di semua browser (Safari, Firefox, Chrome)
+// TANPA offset +07:00 karena data di DB sudah tersimpan dalam WIB
+const parseDateTime = (dtStr) => {
+  return new Date(dtStr.replace(" ", "T") + "+07:00");
 };
 
-// ── Helper: ambil "hari ini" dalam zona WIB, jam 00:00:00 ──
+// ── Helper: ambil "hari ini" jam 00:00:00 dalam WIB ───────────────────────
 const todayWIB = () => {
     const now = new Date();
-    // Konversi ke WIB lalu ambil tanggal-nya saja
     const wibStr = now.toLocaleString("en-CA", {
         timeZone: "Asia/Jakarta",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-    }); // → "2025-05-11"
+    }); // → "2026-05-11"
+    // Parse sebagai midnight WIB — harus tetap pakai +07:00 di sini
+    // karena ini bukan baca dari DB, melainkan konstruksi batas hari ini
     return new Date(wibStr + "T00:00:00+07:00");
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Ambil semua kegiatan untuk admin
@@ -66,9 +69,9 @@ exports.createActivity = (req, res) => {
         return res.status(400).json({ message: "Tanggal mulai dan selesai wajib diisi." });
     }
 
-    // FIX: Parse sebagai WIB agar tidak meleset 7 jam
-    const startDate = parseWIB(start_datetime);
-    const endDate   = parseWIB(end_datetime);
+    // Data dari DB sudah WIB → parse langsung tanpa offset tambahan
+    const startDate = parseDateTime(start_datetime);
+    const endDate   = parseDateTime(end_datetime);
     const today     = todayWIB();
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -114,8 +117,6 @@ exports.createActivity = (req, res) => {
 
         const activityId = result.insertId;
 
-        // Daftarkan semua participant_ids (termasuk admin & superadmin)
-        // Status default = 'tidak_hadir' → tampil sebagai Alfa sampai absen
         if (participant_ids && participant_ids.length > 0) {
             const attendanceValues = participant_ids.map((uid) => [activityId, uid, "tidak_hadir"]);
             db.query(
@@ -133,8 +134,6 @@ exports.createActivity = (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Update kegiatan
-// Catatan: tidak validasi startDate >= today karena kegiatan berlangsung/selesai
-// sudah pasti melewati hari ini — frontend mengunci field tersebut.
 // ─────────────────────────────────────────────────────────────────────────────
 exports.updateActivity = (req, res) => {
     const { id } = req.params;
@@ -162,9 +161,9 @@ exports.updateActivity = (req, res) => {
         return res.status(400).json({ message: "Tanggal mulai dan selesai wajib diisi." });
     }
 
-    // FIX: Parse sebagai WIB agar validasi endDate >= startDate tidak meleset
-    const startDate = parseWIB(start_datetime);
-    const endDate   = parseWIB(end_datetime);
+    // Data dari DB sudah WIB → parse langsung tanpa offset tambahan
+    const startDate = parseDateTime(start_datetime);
+    const endDate   = parseDateTime(end_datetime);
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({ message: "Format tanggal tidak valid." });
@@ -221,10 +220,6 @@ exports.deleteActivity = (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Ambil detail absensi per kegiatan (untuk drawer Kelola Absensi)
-// Logika:
-//   status = 'hadir'        → sudah absen (hadir)
-//   status = 'tidak_hadir'  → belum/tidak absen (alfa)
-// JOIN ke user_periods untuk ambil kementerian aktif
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getActivityAttendance = (req, res) => {
     const { id } = req.params;
@@ -252,7 +247,7 @@ exports.getActivityAttendance = (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Scan QR / Selfie absensi kegiatan (dipanggil dari aplikasi mobile/web user)
+// 6. Scan QR / Selfie absensi kegiatan
 // ─────────────────────────────────────────────────────────────────────────────
 exports.scanAttendance = (req, res) => {
     const { kode_qr, user_id, latitude, longitude } = req.body;
@@ -274,10 +269,10 @@ exports.scanAttendance = (req, res) => {
 
         const activity = activities[0];
 
-        // FIX: Parse datetime DB sebagai WIB (bukan UTC)
+        // Data dari DB sudah WIB → parse langsung tanpa offset tambahan
         const now   = new Date();
-        const start = parseWIB(activity.start_datetime);
-        const end   = parseWIB(activity.end_datetime);
+        const start = parseDateTime(activity.start_datetime);
+        const end   = parseDateTime(activity.end_datetime);
 
         // Toleransi absen: bisa dilakukan 30 menit sebelum kegiatan mulai
         const startWithTolerance = new Date(start.getTime() - 30 * 60 * 1000);

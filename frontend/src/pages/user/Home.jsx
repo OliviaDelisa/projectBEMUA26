@@ -21,6 +21,19 @@ function formatJarak(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+// ── FIX UTAMA: parse datetime dari DB selalu sebagai WIB ────────────────────
+// String dari DB tidak punya timezone suffix → browser bisa salah interpret.
+// Fungsi ini memastikan selalu dibaca sebagai WIB (+07:00).
+const parseDBDateTime = (dtStr) => {
+  if (!dtStr) return new Date(NaN);
+  // Jika sudah ada timezone info (Z atau +XX:XX), parse langsung
+  if (/[Z]$/.test(dtStr) || /[+-]\d{2}:\d{2}$/.test(dtStr)) {
+    return new Date(dtStr);
+  }
+  // Datetime tanpa suffix → tambahkan +07:00 (WIB)
+  return new Date(dtStr.replace(" ", "T") + "+07:00");
+};
+
 export default function Home() {
   const navigate = useNavigate();
 
@@ -32,58 +45,61 @@ export default function Home() {
   const [loading, setLoading]     = useState(true);
   const [toast, setToast]         = useState(null);
 
-  const [showCamera, setShowCamera]                   = useState(false);
-  const [currentAction, setCurrentAction]             = useState(null);
-  const [location, setLocation]                       = useState(null);
-  const [locationName, setLocationName]               = useState(null);
-  const [currentLocationName, setCurrentLocationName] = useState("Mendapatkan lokasi...");
-  const [loadingLocationName, setLoadingLocationName] = useState(false);
-  const [loadingCheckin, setLoadingCheckin]           = useState(false);
-  const [capturedPhoto, setCapturedPhoto]             = useState(null);
-  const [captureTime, setCaptureTime]                 = useState(null);
-  const [distanceSekre, setDistanceSekre]             = useState(null);
-  const [photoModal, setPhotoModal]                   = useState(null);
-  const [radiusError, setRadiusError]                 = useState(null);
+  const [showCamera, setShowCamera]                     = useState(false);
+  const [currentAction, setCurrentAction]               = useState(null);
+  const [location, setLocation]                         = useState(null);
+  const [locationName, setLocationName]                 = useState(null);
+  const [currentLocationName, setCurrentLocationName]   = useState("Mendapatkan lokasi...");
+  const [loadingLocationName, setLoadingLocationName]   = useState(false);
+  const [loadingCheckin, setLoadingCheckin]             = useState(false);
+  const [capturedPhoto, setCapturedPhoto]               = useState(null);
+  const [captureTime, setCaptureTime]                   = useState(null);
+  const [distanceSekre, setDistanceSekre]               = useState(null);
+  const [photoModal, setPhotoModal]                     = useState(null);
+  const [radiusError, setRadiusError]                   = useState(null);
   const [activityRadiusErrors, setActivityRadiusErrors] = useState({});
-  const [showProfileMenu, setShowProfileMenu]         = useState(false);
-
-  // null = tidak ada, "sekre" = tombol sekre, number = activity_id kegiatan
-  const [loadingFor, setLoadingFor] = useState(null);
+  const [showProfileMenu, setShowProfileMenu]           = useState(false);
+  const [loadingFor, setLoadingFor]                     = useState(null);
 
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
-  const today    = new Date();
+  const today     = new Date();
   const hariList  = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
   const bulanList = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
   const todayStr  = `${hariList[today.getDay()]}, ${today.getDate()}/${today.getMonth()+1}/${today.getFullYear()}`;
 
-  // ── Validasi hari & jam absensi sekre ─────────────────────────
+  // ── Validasi hari & jam absensi sekre ───────────────────────────────────
   const getCekWaktu = () => {
-  const now        = new Date();
-  const hari       = now.getDay();
-  const totalMenit = now.getHours() * 60 + now.getMinutes();
-
-  if (hari === 0 || hari === 6) {
-    return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
-  }
-  if (totalMenit < 8 * 60) {
-    return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
-  }
-  if (totalMenit >= 18 * 60) {
-    return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
-  }
-  return { bisa: true, pesan: null };
-};
+    const now        = new Date();
+    const hari       = now.getDay();
+    const totalMenit = now.getHours() * 60 + now.getMinutes();
+    if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
+    if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
+    if (totalMenit >= 18 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
+    return { bisa: true, pesan: null };
+  };
 
   const waktu = getCekWaktu();
 
-  const isKegiatanBisaAbsen = (act) => new Date() >= new Date(act.start_datetime);
-  const isKegiatanMasihBerlangsung = (act) => new Date() <= new Date(act.end_datetime);
+  // ── Helpers waktu — semua pakai parseDBDateTime ─────────────────────────
+  const formatTime = (dt) => {
+    if (!dt) return "-";
+    return parseDBDateTime(dt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatDatetime = (dt) => {
+    if (!dt) return "-";
+    const d = parseDBDateTime(dt);
+    return `${formatTime(dt)}, ${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
+  const isKegiatanBisaAbsen = (act) => new Date() >= parseDBDateTime(act.start_datetime);
+  const isKegiatanMasihBerlangsung = (act) => new Date() <= parseDBDateTime(act.end_datetime);
 
   const formatWaktuMulai = (dt) => {
-    const d   = new Date(dt);
+    const d   = parseDBDateTime(dt);
     const now = new Date();
     const diffMs    = d - now;
     if (diffMs <= 0) return null;
@@ -146,9 +162,7 @@ export default function Home() {
 
       setHomeData(homeJson);
 
-      const kegHist = Array.isArray(kegHistAll)
-        ? kegHistAll.filter(i => i.status === "hadir")
-        : [];
+      const kegHist = Array.isArray(kegHistAll) ? kegHistAll.filter(i => i.status === "hadir") : [];
 
       const kegOngoing = (homeJson?.activities || [])
         .filter(act => act.att_status === "hadir")
@@ -184,7 +198,7 @@ export default function Home() {
       });
 
       const merged = [...sekreTagged, ...allKegiatan]
-        .sort((a, b) => new Date(b._sortTime) - new Date(a._sortTime))
+        .sort((a, b) => parseDBDateTime(b._sortTime) - parseDBDateTime(a._sortTime))
         .slice(0, 5);
 
       setHistory(merged);
@@ -254,19 +268,14 @@ export default function Home() {
     });
 
   const handleAmbilAbsensi = async (type, activity_id = null) => {
-    // ── Validasi waktu untuk absensi sekre ──────────────────────
     if (type === "sekre") {
       const cek = getCekWaktu();
-      if (!cek.bisa) {
-        setToast({ type: "error", msg: cek.pesan });
-        return;
-      }
+      if (!cek.bisa) { setToast({ type: "error", msg: cek.pesan }); return; }
     }
 
     const key = type === "sekre" ? "sekre" : activity_id;
     setLoadingFor(key);
     setRadiusError(null);
-
     if (type === "kegiatan" && activity_id) {
       setActivityRadiusErrors(prev => ({ ...prev, [activity_id]: null }));
     }
@@ -303,7 +312,6 @@ export default function Home() {
   const handleSubmitAbsensi = async () => {
     if (!capturedPhoto || !location) return;
 
-    // ── Double-check validasi waktu saat submit (untuk sekre) ───
     if (currentAction?.type === "sekre") {
       const cek = getCekWaktu();
       if (!cek.bisa) {
@@ -322,31 +330,15 @@ export default function Home() {
         : `${API}/attendance/activity/checkin`;
 
       const body = currentAction.type === "sekre"
-        ? {
-            user_id:       user.id,
-            latitude:      location.latitude,
-            longitude:     location.longitude,
-            location_name: locationName || "Sekre BEM",
-            selfie_photo:  capturedPhoto,
-          }
-        : {
-            activity_id:   currentAction.activity_id,
-            user_id:       user.id,
-            latitude:      location.latitude,
-            longitude:     location.longitude,
-            location_name: locationName || "Lokasi Kegiatan",
-            selfie_photo:  capturedPhoto,
-          };
+        ? { user_id: user.id, latitude: location.latitude, longitude: location.longitude, location_name: locationName || "Sekre BEM", selfie_photo: capturedPhoto }
+        : { activity_id: currentAction.activity_id, user_id: user.id, latitude: location.latitude, longitude: location.longitude, location_name: locationName || "Lokasi Kegiatan", selfie_photo: capturedPhoto };
 
       const res  = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
 
       if (!res.ok) {
         if (res.status === 403 && currentAction.type === "kegiatan") {
-          setActivityRadiusErrors(prev => ({
-            ...prev,
-            [currentAction.activity_id]: data.message,
-          }));
+          setActivityRadiusErrors(prev => ({ ...prev, [currentAction.activity_id]: data.message }));
           setShowCamera(false);
           setCapturedPhoto(null);
           setCaptureTime(null);
@@ -371,20 +363,9 @@ export default function Home() {
 
   const handleLogout = () => { localStorage.clear(); sessionStorage.clear(); window.location.href = "/"; };
 
-  const formatTime = (dt) => {
-    if (!dt) return "-";
-    return new Date(dt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  };
-  const formatDatetime = (dt) => {
-    if (!dt) return "-";
-    const d = new Date(dt);
-    return `${formatTime(dt)}, ${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}`;
-  };
-
   const sudahAbsenSekre = homeData?.secretariat_attendance !== null;
-
-  const jabatan     = user?.jabatan    || "-";
-  const kementerian = user?.kementerian || null;
+  const jabatan         = user?.jabatan    || "-";
+  const kementerian     = user?.kementerian || null;
 
   const IconCheck = () => (
     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -576,42 +557,32 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 mt-1 shrink-0">
-            {/* Notifikasi */}
             <button className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </button>
-
-            {/* Profil Dropdown */}
             <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(v => !v)}
-                className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center"
-              >
+              <button onClick={() => setShowProfileMenu(v => !v)}
+                className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center">
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </button>
-
               {showProfileMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowProfileMenu(false)} />
                   <div className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-lg shadow-black/10 border border-gray-100 overflow-hidden z-20">
-                    <button
-                      onClick={() => { setShowProfileMenu(false); navigate("/profile"); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition"
-                    >
+                    <button onClick={() => { setShowProfileMenu(false); navigate("/profile"); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition">
                       <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       Profil
                     </button>
                     <div className="h-px bg-gray-100" />
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition"
-                    >
+                    <button onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
@@ -668,12 +639,9 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Info jam & radius */}
               <div className="flex flex-col gap-1.5 mb-2">
                 <div className="flex items-center gap-1.5 text-xs text-gray-400">
                   Tersedia Senin–Jumat, pukul 08.00–18.00
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 </div>
               </div>
 
@@ -688,15 +656,17 @@ export default function Home() {
 
               {sudahAbsenSekre ? (
                 <div className="flex flex-col gap-2.5 mb-3 p-4 rounded-2xl bg-green-50 border border-green-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
-                      <IconCheck />
-                      <span>Anda sudah absen</span>
-                    </div>
+                  <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+                    <IconCheck /><span>Anda sudah absen</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <IconClock />
-                    <span>{formatTime(homeData.secretariat_attendance.check_in_time)}, {new Date(homeData.secretariat_attendance.check_in_time).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</span>
+                    {/* FIX: pakai parseDBDateTime, bukan new Date() langsung */}
+                    <span>
+                      {formatTime(homeData.secretariat_attendance.check_in_time)},{" "}
+                      {parseDBDateTime(homeData.secretariat_attendance.check_in_time)
+                        .toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                    </span>
                   </div>
                   <div className="flex items-start gap-2 text-xs text-gray-500">
                     <IconPin /><span className="leading-relaxed">{homeData.secretariat_attendance.location_name || "Sekre BEM"}</span>
@@ -737,19 +707,17 @@ export default function Home() {
                 <h2 className="text-sm font-bold text-gray-800 mb-3">Absensi Kegiatan</h2>
                 <div className="flex flex-col gap-4">
                   {homeData.activities.map((act) => {
-                    const sudahAbsen         = act.att_status === "hadir";
-                    const bisaAbsen          = isKegiatanBisaAbsen(act);
-                    const masihBerlangsung   = isKegiatanMasihBerlangsung(act);
-                    const sudahSelesai       = !masihBerlangsung;
-                    const infoWaktu          = !bisaAbsen ? formatWaktuMulai(act.start_datetime) : null;
-                    const isLoadingThis      = loadingFor === act.id;
-                    const radiusErrKegiatan  = activityRadiusErrors[act.id];
-
-                    const tombolDisabled = loadingFor !== null || !bisaAbsen || sudahSelesai;
+                    const sudahAbsen        = act.att_status === "hadir";
+                    const bisaAbsen         = isKegiatanBisaAbsen(act);
+                    const masihBerlangsung  = isKegiatanMasihBerlangsung(act);
+                    const sudahSelesai      = !masihBerlangsung;
+                    const infoWaktu         = !bisaAbsen ? formatWaktuMulai(act.start_datetime) : null;
+                    const isLoadingThis     = loadingFor === act.id;
+                    const radiusErrKegiatan = activityRadiusErrors[act.id];
+                    const tombolDisabled    = loadingFor !== null || !bisaAbsen || sudahSelesai;
 
                     return (
                       <div key={act.id} className="border border-gray-100 rounded-xl p-4">
-
                         {!bisaAbsen && (
                           <div className="flex items-center gap-1.5 mb-2">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-500 text-xs font-medium">
@@ -852,7 +820,8 @@ export default function Home() {
               ) : (
                 <div className="flex flex-col gap-1">
                   {history.map((item, idx) => {
-                    const d          = item.check_in_time ? new Date(item.check_in_time) : null;
+                    // FIX: pakai parseDBDateTime, bukan new Date() langsung
+                    const d          = item.check_in_time ? parseDBDateTime(item.check_in_time) : null;
                     const timeStr    = d ? d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-";
                     const dateStr    = d ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
                     const isKegiatan = item._jenis === "kegiatan";

@@ -37,6 +37,15 @@ const isValidCoord = (lat, lng) => {
   return !isNaN(la) && !isNaN(ln) && la >= -90 && la <= 90 && ln >= -180 && ln <= 180;
 };
 
+
+const parseDBDateTime = (dtStr) => {
+  if (!dtStr) return new Date(NaN);
+  if (/[Z]$/.test(dtStr) || /[+-]\d{2}:\d{2}$/.test(dtStr)) {
+    return new Date(dtStr);
+  }
+  return new Date(dtStr.replace(' ', 'T') + '+07:00');
+};
+
 const geocodeSearch = async (query) => {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=id`;
   const res = await fetch(url, { headers: { "Accept-Language": "id" } });
@@ -61,19 +70,20 @@ const formatReverseResult = (data) => {
 };
 
 const formatDateTime = (dtStr) => {
-  // FIX: Tambah .replace(" ", "T") agar konsisten di semua browser
-  const d = new Date(dtStr.replace(" ", "T"));
+  const d = parseDBDateTime(dtStr);
   const tgl = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   const jam = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
   return { tgl, jam };
 };
 
+
+
 // FIX: getStatus sekarang pakai .replace(" ", "T") agar parsing datetime konsisten
 // di semua browser — tanpa ini beberapa browser bisa salah parse "YYYY-MM-DD HH:mm"
 const getStatus = (k) => {
-  const now = new Date();
-  const start = new Date(k.start_datetime.replace(" ", "T"));
-  const end   = new Date(k.end_datetime.replace(" ", "T"));
+  const now   = new Date();
+  const start = parseDBDateTime(k.start_datetime);
+  const end   = parseDBDateTime(k.end_datetime);
   if (now < start) return "mendatang";
   if (now >= start && now <= end) return "berlangsung";
   return "selesai";
@@ -221,12 +231,16 @@ export default function ManajemenKegiatan() {
   // ── API ──────────────────────────────────────────────────────────────────
 
   const fetchKegiatan = async () => {
-    try {
-      const res = await fetch(`${API}/activities`);
-      setKegiatanList(await res.json());
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
+  try {
+    const res = await fetch(`${API}/activities`);
+    const data = await res.json();
+    // DEBUG sementara
+    console.log("start_datetime:", data[0]?.start_datetime);
+    console.log("typeof:", typeof data[0]?.start_datetime);
+    setKegiatanList(data);
+  } catch (err) { console.error(err); }
+  finally { setLoading(false); }
+};
 
   // FIX: Ambil SEMUA user aktif tanpa filter role.
   // Admin dan superadmin adalah user juga, harus masuk sebagai peserta kegiatan.
@@ -441,8 +455,8 @@ export default function ManajemenKegiatan() {
     const status = getStatus(k);
     if (status === "selesai") return;
     // FIX: parse dengan .replace(" ", "T") agar konsisten
-    const start = new Date(k.start_datetime.replace(" ", "T"));
-    const end   = new Date(k.end_datetime.replace(" ", "T"));
+    const start = parseDBDateTime(k.start_datetime);
+const end   = parseDBDateTime(k.end_datetime);
     const padTime = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     const latVal = parseFloat(k.latitude);
     const lngVal = parseFloat(k.longitude);
@@ -903,15 +917,15 @@ export default function ManajemenKegiatan() {
                         <span className="flex items-center gap-1.5">
                           <Calendar size={11} className="text-gray-400" />
                           {/* FIX: .replace(" ", "T") untuk konsistensi parsing */}
-                          {new Date(activeKegiatan.start_datetime.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                          {parseDBDateTime(activeKegiatan.start_datetime).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                           {" "}
-                          {new Date(activeKegiatan.start_datetime.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                          {parseDBDateTime(activeKegiatan.start_datetime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
                         </span>
                         <span className="flex items-center gap-1.5">
                           <Clock size={11} className="text-gray-400" />
-                          {new Date(activeKegiatan.end_datetime.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                          {parseDBDateTime(activeKegiatan.end_datetime).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                           {" "}
-                          {new Date(activeKegiatan.end_datetime.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                          {parseDBDateTime(activeKegiatan.end_datetime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })}
                         </span>
                       </div>
                     )}
@@ -1001,7 +1015,7 @@ export default function ManajemenKegiatan() {
                           <td className="px-5 py-3">{renderFotoSelfie(a.selfie_photo)}</td>
                           <td className="px-5 py-3 text-xs font-mono text-gray-500">
                             {a.check_in_time
-                              ? new Date(a.check_in_time.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+                              ? parseDBDateTime(a.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
                               : <span className="italic text-gray-300">–</span>}
                           </td>
                         </tr>
@@ -1108,7 +1122,7 @@ export default function ManajemenKegiatan() {
                           {memberModal.filter !== "alfa" && (
                             <td className="px-5 py-3 font-mono text-gray-500">
                               {a.check_in_time
-                                ? new Date(a.check_in_time.replace(" ", "T")).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+                                ? parseDBDateTime(a.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
                                 : <span className="italic text-gray-300">–</span>}
                             </td>
                           )}
