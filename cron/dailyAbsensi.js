@@ -8,12 +8,9 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-cron.schedule('10 2 * * 1-5', () => {
-  console.log('[CRON] Test - Mengisi tidak_hadir untuk kemarin...');
-  
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const today = getLocalDateString(yesterday);
+cron.schedule('1 18 * * 1-5', () => {
+  console.log('[CRON] Mengisi tidak_hadir untuk hari ini...');
+  const today = getLocalDateString();
 
   db.query(
     `SELECT DISTINCT up.user_id, up.period_id
@@ -40,5 +37,5 @@ cron.schedule('10 2 * * 1-5', () => {
     }
   );
 }, {
-  timezone: "Asia/Jakarta"  // ← penting! agar jam 18:01 WIB
+  timezone: "Asia/Jakarta"
 });

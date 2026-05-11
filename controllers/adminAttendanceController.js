@@ -18,7 +18,7 @@ exports.getAdminSecretariatMonitor = (req, res) => {
     FROM secretariat_attendance sa
     JOIN users u ON sa.user_id = u.id
     JOIN user_periods up ON up.user_id = u.id AND up.is_active = TRUE
-    WHERE 1=1
+    WHERE sa.status != 'tidak_hadir'
   `;
   const params = [];
 
@@ -38,7 +38,6 @@ exports.getAdminSecretariatMonitor = (req, res) => {
     res.json(result);
   });
 };
-
 // ── getSecretariatRekap ──────────────────────────────────────────
 // GET /admin/attendance/rekap?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&kementerian=all
 exports.getSecretariatRekap = (req, res) => {

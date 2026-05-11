@@ -26,12 +26,14 @@ function formatJarak(m) {
 // Fungsi ini memastikan selalu dibaca sebagai WIB (+07:00).
 const parseDBDateTime = (dtStr) => {
   if (!dtStr) return new Date(NaN);
-  // Jika sudah ada timezone info (Z atau +XX:XX), parse langsung
+  // Jika hanya tanggal "YYYY-MM-DD" tanpa jam
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dtStr))) {
+    return new Date(String(dtStr) + "T00:00:00+07:00");
+  }
   if (/[Z]$/.test(dtStr) || /[+-]\d{2}:\d{2}$/.test(dtStr)) {
     return new Date(dtStr);
   }
-  // Datetime tanpa suffix → tambahkan +07:00 (WIB)
-  return new Date(dtStr.replace(" ", "T") + "+07:00");
+  return new Date(String(dtStr).replace(" ", "T") + "+07:00");
 };
 
 export default function Home() {
