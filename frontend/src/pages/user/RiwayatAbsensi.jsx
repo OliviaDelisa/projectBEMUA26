@@ -10,18 +10,27 @@ const bulanList = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep"
 const bulanFull = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const hariList = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
+// ── Helper parse tanggal agar date-only string tidak dianggap UTC ──
+function parseDate(dt) {
+  if (!dt) return null;
+  if (typeof dt === "string" && dt.length === 10) {
+    return new Date(dt + "T00:00:00"); // "YYYY-MM-DD" → local time
+  }
+  return new Date(typeof dt === "string" ? dt.replace(" ", "T") : dt);
+}
+
 function formatTime(dt) {
   if (!dt) return "-";
   return new Date(dt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
 function formatDate(dt) {
   if (!dt) return "-";
-  const d = new Date(dt);
+  const d = parseDate(dt);
   return `${hariList[d.getDay()]}, ${d.getDate()} ${bulanFull[d.getMonth()]} ${d.getFullYear()}`;
 }
 function formatShortDate(dt) {
   if (!dt) return "-";
-  const d = new Date(dt);
+  const d = parseDate(dt);
   return `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}`;
 }
 
@@ -70,10 +79,9 @@ export default function RiwayatAbsensi({ onBack }) {
     const data = tabAktif === "sekre" ? riwayatSekre : riwayatKegiatan;
     const set = new Set();
     data.forEach(item => {
-      // Untuk kegiatan tidak hadir, gunakan tanggal kegiatan (start_datetime atau activity_date)
       const dt = item.check_in_time || item.date || item.activity_date || item.start_datetime;
       if (dt) {
-        const d = new Date(dt);
+        const d = parseDate(dt); // ← FIX
         set.add(`${d.getFullYear()}-${d.getMonth()}`);
       }
     });
@@ -86,11 +94,10 @@ export default function RiwayatAbsensi({ onBack }) {
   const dataFiltered = () => {
     const data = tabAktif === "sekre" ? riwayatSekre : riwayatKegiatan;
     return data.filter(item => {
-      // Untuk kegiatan tidak hadir, gunakan tanggal kegiatan
       const dt = item.check_in_time || item.date || item.activity_date || item.start_datetime;
       if (filterStatus !== "semua" && item.status !== filterStatus) return false;
       if (filterBulan !== "semua" && dt) {
-        const d   = new Date(dt);
+        const d   = parseDate(dt); // ← FIX
         const key = `${d.getFullYear()}-${d.getMonth()}`;
         if (key !== filterBulan) return false;
       }
@@ -103,7 +110,6 @@ export default function RiwayatAbsensi({ onBack }) {
   const tidakHadirCount = filtered.filter(i => i.status !== "hadir").length;
   const activeFilterCount = (filterStatus !== "semua" ? 1 : 0) + (filterBulan !== "semua" ? 1 : 0);
 
-  // ── Helper: pastikan src foto valid (base64 atau URL) ─────────────
   const getFotoSrc = (raw) => {
     if (!raw) return null;
     if (raw.startsWith("data:image")) return raw;
@@ -111,7 +117,6 @@ export default function RiwayatAbsensi({ onBack }) {
     return `data:image/jpeg;base64,${raw}`;
   };
 
-  // ── Icons ──────────────────────────────────────────────────────────────
   const IconCheck = ({ cls = "w-4 h-4" }) => (
     <svg className={`${cls} shrink-0`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M20 6L9 17l-5-5" />
@@ -154,7 +159,6 @@ export default function RiwayatAbsensi({ onBack }) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                {/* Untuk tidak hadir kegiatan, gunakan tanggal kegiatan */}
                 {formatDate(
                   detailModal.check_in_time ||
                   detailModal.date ||
@@ -165,15 +169,12 @@ export default function RiwayatAbsensi({ onBack }) {
             </div>
 
             <div className="p-5 flex flex-col gap-4">
-              {/* Status badge */}
               <div className={`self-start flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold
                 ${detailModal.status === "hadir" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}>
-                {detailModal.status === "hadir" ? <IconCheck /> : <IconX />}
                 {detailModal.status === "hadir" ? "Hadir" : "Tidak Hadir"}
               </div>
 
               <div className="flex flex-col gap-3">
-                {/* Waktu check-in (hanya jika hadir) */}
                 {detailModal.check_in_time && (
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -189,7 +190,6 @@ export default function RiwayatAbsensi({ onBack }) {
                   </div>
                 )}
 
-                {/* Tanggal kegiatan (untuk kegiatan tidak hadir) */}
                 {detailModal.status !== "hadir" && (detailModal.activity_date || detailModal.start_datetime) && (
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -209,7 +209,6 @@ export default function RiwayatAbsensi({ onBack }) {
                   </div>
                 )}
 
-                {/* Lokasi */}
                 {(detailModal.location_name || detailModal.latitude) && (
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -230,7 +229,6 @@ export default function RiwayatAbsensi({ onBack }) {
                   </div>
                 )}
 
-                {/* Jarak (hanya sekre) */}
                 {detailModal.distance_meters != null && (
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -247,7 +245,6 @@ export default function RiwayatAbsensi({ onBack }) {
                   </div>
                 )}
 
-                {/* Jenis absensi */}
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
                     <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -265,7 +262,6 @@ export default function RiwayatAbsensi({ onBack }) {
                 </div>
               </div>
 
-              {/* ── Foto Selfie (hanya jika hadir & ada foto) ─────────────── */}
               {detailModal.status === "hadir" && (() => {
                 const fotoSrc = getFotoSrc(detailModal.selfie_photo);
                 if (!fotoSrc) return (
@@ -345,7 +341,6 @@ export default function RiwayatAbsensi({ onBack }) {
       <div className="max-w-lg mx-auto px-4 -mt-8 pb-10 flex flex-col gap-4">
 
         <div className="bg-white rounded-2xl shadow-sm p-4">
-          {/* Tabs */}
           <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
             {[
               { key: "sekre",    label: "Sekretariat" },
@@ -361,7 +356,6 @@ export default function RiwayatAbsensi({ onBack }) {
             ))}
           </div>
 
-          {/* Filter */}
           <div className="flex gap-2 mb-4">
             <div className="relative flex-1">
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
@@ -400,7 +394,6 @@ export default function RiwayatAbsensi({ onBack }) {
             )}
           </div>
 
-          {/* ── Stat summary ── */}
           <div className="flex gap-3 mb-1">
             <div className="flex-1 bg-green-50 rounded-xl px-3 py-2">
               <p className="text-xs font-bold text-green-700">{hadirCount}</p>
@@ -449,12 +442,11 @@ export default function RiwayatAbsensi({ onBack }) {
                 const isHadir = item.status === "hadir";
                 const judul   = item.title || null;
 
-                // Untuk hadir: pakai check_in_time. Untuk tidak hadir kegiatan: pakai activity_date / start_datetime
-                const dtHadir     = item.check_in_time;
+                const dtHadir      = item.check_in_time;
                 const dtTidakHadir = item.activity_date || item.start_datetime || item.date;
                 const dtUtama      = isHadir ? dtHadir : dtTidakHadir;
 
-                const d       = dtUtama ? new Date(dtUtama) : null;
+                const d       = dtUtama ? parseDate(dtUtama) : null; // ← FIX
                 const timeStr = dtHadir ? formatTime(dtHadir) : "-";
                 const dateStr = d ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
                 const hariStr = d ? hariList[d.getDay()] : "";
@@ -480,7 +472,6 @@ export default function RiwayatAbsensi({ onBack }) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          {/* Tanggal selalu tampil, baik hadir maupun tidak */}
                           <p className="text-xs font-semibold text-gray-700">{hariStr}, {dateStr}</p>
                           {judul && (
                             <p className="text-xs text-gray-500 mt-0.5 font-medium">{judul}</p>
@@ -515,7 +506,6 @@ export default function RiwayatAbsensi({ onBack }) {
                         </>
                       )}
 
-                      {/* Untuk tidak hadir kegiatan — tampilkan lokasi kegiatan */}
                       {!isHadir && tabAktif === "kegiatan" && item.activity_location && (
                         <p className="text-xs text-gray-400 mt-1 truncate">{item.activity_location}</p>
                       )}

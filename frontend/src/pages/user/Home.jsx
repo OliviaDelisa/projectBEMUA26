@@ -162,8 +162,10 @@ export default function Home() {
 
       setHomeData(homeJson);
 
+      // ── Kegiatan dari history yang statusnya hadir ──
       const kegHist = Array.isArray(kegHistAll) ? kegHistAll.filter(i => i.status === "hadir") : [];
 
+      // ── Kegiatan ongoing yang sudah absen (dari homeData.activities) ──
       const kegOngoing = (homeJson?.activities || [])
         .filter(act => act.att_status === "hadir")
         .map(act => ({
@@ -181,6 +183,7 @@ export default function Home() {
       const sekreTagged = (Array.isArray(sekreHist) ? sekreHist : []).map(i => ({
         ...i,
         _jenis:    "sekre",
+        // FIX: untuk tidak hadir sekre, gunakan date sebagai sort key
         _sortTime: i.check_in_time || i.date,
       }));
 
@@ -190,6 +193,7 @@ export default function Home() {
         _sortTime: i.check_in_time,
       }));
 
+      // Dedup kegiatan: ongoing + history, hindari duplikat activity_id
       const seenActivityIds = new Set();
       const allKegiatan = [...kegOngoing, ...kegTagged].filter(i => {
         if (seenActivityIds.has(i.activity_id)) return false;
@@ -197,9 +201,12 @@ export default function Home() {
         return true;
       });
 
+      // ── FIX: hanya tampilkan entry yang punya _sortTime (sudah ada aksi),
+      //    lalu sort dan strict slice 5 ──────────────────────────────────
       const merged = [...sekreTagged, ...allKegiatan]
+        .filter(item => !!item._sortTime)  // buang entry tanpa waktu
         .sort((a, b) => parseDBDateTime(b._sortTime) - parseDBDateTime(a._sortTime))
-        .slice(0, 5);
+        .slice(0, 5);                       // strict 5 baris
 
       setHistory(merged);
     } catch {
@@ -232,19 +239,24 @@ export default function Home() {
   const canvas = canvasRef.current;
   if (!video || !canvas) return;
 
-  // Batasi resolusi maksimal 480px
   const MAX_WIDTH = 480;
   const ratio     = Math.min(1, MAX_WIDTH / video.videoWidth);
   canvas.width    = video.videoWidth  * ratio;
   canvas.height   = video.videoHeight * ratio;
-  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // Kompres lebih kecil: quality 0.4
+  const ctx = canvas.getContext("2d");
+  
+  // ── Flip horizontal ──
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
   setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.4));
   setCaptureTime(new Date());
-  stopCamera();
-};
+  stopCamera(); 
 
+ };
   const retakePhoto = () => {
     setCapturedPhoto(null);
     setCaptureTime(null);
@@ -469,7 +481,14 @@ export default function Home() {
             <div className="relative bg-black" style={{ aspectRatio: "3/4" }}>
               {!capturedPhoto ? (
                 <>
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className="w-full h-full object-cover"
+                    style={{ transform: "scaleX(-1)" }}  // ← tambah ini
+                  />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 to-transparent p-4">
                     <div className="flex items-start gap-2 text-white">
                       <IconPin />
@@ -667,7 +686,6 @@ export default function Home() {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-600">
                     <IconClock />
-                    {/* FIX: pakai parseDBDateTime, bukan new Date() langsung */}
                     <span>
                       {formatTime(homeData.secretariat_attendance.check_in_time)},{" "}
                       {parseDBDateTime(homeData.secretariat_attendance.check_in_time)
@@ -826,11 +844,16 @@ export default function Home() {
               ) : (
                 <div className="flex flex-col gap-1">
                   {history.map((item, idx) => {
-                    // FIX: pakai parseDBDateTime, bukan new Date() langsung
-                    const d          = item.check_in_time ? parseDBDateTime(item.check_in_time) : null;
-                    const timeStr    = d ? d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-";
-                    const dateStr    = d ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
+                    // FIX: pakai parseDBDateTime untuk semua parsing waktu
+                    // Untuk tidak hadir sekre, check_in_time null → fallback ke date
+                    const dtStr   = item.check_in_time || item.date;
+                    const d       = dtStr ? parseDBDateTime(dtStr) : null;
+                    const timeStr = item.check_in_time
+                      ? parseDBDateTime(item.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+                      : "-";
+                    const dateStr    = d && !isNaN(d) ? `${d.getDate()} ${bulanList[d.getMonth()]} ${d.getFullYear()}` : "-";
                     const isKegiatan = item._jenis === "kegiatan";
+                    const isHadir    = item.status === "hadir";
                     const fotoSrc    = item.selfie_photo
                       ? (item.selfie_photo.startsWith("data:") ? item.selfie_photo : `data:image/jpeg;base64,${item.selfie_photo}`)
                       : null;
@@ -838,8 +861,8 @@ export default function Home() {
                     return (
                       <div key={item.id ?? idx} className="py-3 border-b border-gray-50 last:border-0">
                         <div className="flex items-start gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${item.status === "hadir" ? "bg-green-50" : "bg-red-50"}`}>
-                            {item.status === "hadir" ? (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isHadir ? "bg-green-50" : "bg-red-50"}`}>
+                            {isHadir ? (
                               <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
@@ -851,9 +874,11 @@ export default function Home() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-gray-700">{timeStr} · {dateStr}</p>
-                              <span className={`text-xs font-semibold shrink-0 ${item.status === "hadir" ? "text-green-500" : "text-red-400"}`}>
-                                {item.status === "hadir" ? "Hadir" : "Tidak Hadir"}
+                              <p className="text-xs font-semibold text-gray-700">
+                                {isHadir ? `${timeStr} · ` : ""}{dateStr}
+                              </p>
+                              <span className={`text-xs font-semibold shrink-0 ${isHadir ? "text-green-500" : "text-red-400"}`}>
+                                {isHadir ? "Hadir" : "Tidak Hadir"}
                               </span>
                             </div>
                             <p className="text-xs text-gray-500 mt-1 leading-relaxed">
@@ -869,7 +894,7 @@ export default function Home() {
                                 <p className="text-xs text-gray-300">Absen Sekre</p>
                               )}
                             </div>
-                            {fotoSrc && (
+                            {fotoSrc && isHadir && (
                               <button
                                 onClick={() => setPhotoModal({ src: fotoSrc, time: `${timeStr}, ${dateStr}`, lokasi: item.location_name || (isKegiatan ? "Lokasi Kegiatan" : "Sekre BEM"), jarak: isKegiatan ? null : item.distance_meters })}
                                 className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#00923D] hover:opacity-70 transition"

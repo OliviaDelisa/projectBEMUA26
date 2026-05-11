@@ -95,17 +95,93 @@ exports.getHomeData = (req, res) => {
 
 // ── getSecretariatHistory ────────────────────────────────────────
 // GET /attendance/secretariat/history/:user_id?limit=5
+// FIX: generate virtual "tidak_hadir" untuk hari kerja yang terlewat
 exports.getSecretariatHistory = (req, res) => {
   const { user_id } = req.params;
-  const limit = req.query.limit || 5;
+  const limit = parseInt(req.query.limit) || 5;
+
+  // Ambil lebih banyak dari DB agar rentang hari kerja cukup untuk di-fill
+  const dbLimit = Math.max(limit * 10, 100);
 
   db.query(
     `SELECT * FROM secretariat_attendance
      WHERE user_id = ? ORDER BY date DESC LIMIT ?`,
-    [parseInt(user_id), parseInt(limit)],
+    [parseInt(user_id), dbLimit],
     (err, result) => {
       if (err) return res.status(500).json({ message: "Server error" });
-      res.json(result);
+
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+
+      // Tentukan tanggal awal rentang:
+      // Jika ada data absen, mulai dari tanggal absen paling lama.
+      // Jika tidak ada data, mundur 30 hari ke belakang.
+      let startDate;
+      if (result.length > 0) {
+        const oldest = result[result.length - 1].date;
+        const oldestStr = oldest instanceof Date
+          ? getLocalDateString(oldest)
+          : String(oldest).slice(0, 10);
+        startDate = new Date(oldestStr + 'T00:00:00+07:00');
+      } else {
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 30);
+      }
+
+      // Buat Set berisi tanggal-tanggal yang sudah ada di DB (hadir maupun record lain)
+      const hadirSet = new Set(result.map(r => {
+        const d = r.date instanceof Date
+          ? getLocalDateString(r.date)
+          : String(r.date).slice(0, 10);
+        return d;
+      }));
+
+      // Iterasi setiap hari kerja (Senin–Jumat) dari startDate s/d kemarin
+      // (Hari ini tidak dihitung tidak hadir karena masih bisa absen)
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const virtual = [];
+      const cursor = new Date(startDate);
+
+      while (cursor <= yesterday) {
+        const day = cursor.getDay();
+        if (day !== 0 && day !== 6) {
+          const dateStr = getLocalDateString(cursor);
+          if (!hadirSet.has(dateStr)) {
+            virtual.push({
+              id: null,
+              user_id: parseInt(user_id),
+              period_id: null,
+              date: dateStr,
+              check_in_time: null,
+              latitude: null,
+              longitude: null,
+              location_name: null,
+              selfie_photo: null,
+              distance_meters: null,
+              status: 'tidak_hadir',
+              created_at: null,
+            });
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // Gabung data DB + virtual, sort DESC by date, ambil sesuai limit
+      const merged = [...result, ...virtual]
+        .sort((a, b) => {
+          const da = a.date instanceof Date
+            ? a.date
+            : new Date(String(a.date).slice(0, 10) + 'T00:00:00+07:00');
+          const db2 = b.date instanceof Date
+            ? b.date
+            : new Date(String(b.date).slice(0, 10) + 'T00:00:00+07:00');
+          return db2 - da;
+        })
+        .slice(0, limit);
+
+      res.json(merged);
     }
   );
 };
@@ -238,8 +314,8 @@ exports.checkInActivity = (req, res) => {
       const activity  = activities[0];
       const now       = new Date();
       const startTime = activity.start_datetime instanceof Date
-      ? activity.start_datetime
-      : new Date(activity.start_datetime.replace(" ", "T") + '+07:00');
+        ? activity.start_datetime
+        : new Date(activity.start_datetime.replace(" ", "T") + '+07:00');
 
       if (now < startTime) {
         return res.status(400).json({
