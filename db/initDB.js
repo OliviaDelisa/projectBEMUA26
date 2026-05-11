@@ -404,6 +404,7 @@ connection.connect(async (err) => {
                 console.warn(`  ⚠  Permission tidak ditemukan: ${permName}`);
                 continue;
               }
+             
               await query(
                 `INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)`,
                 [roleId, permId]
@@ -417,21 +418,21 @@ connection.connect(async (err) => {
           const adminPassword      = await bcrypt.hash("admin123", 10);
           const userPassword       = await bcrypt.hash("user123", 10);
 
-          await query(`
-            INSERT INTO users (name, nim, username, password, must_change_password)
-            SELECT * FROM (
-              SELECT 'Super Admin BEM', '0000000001', 'superadmin', '${superadminPassword}', FALSE
-              UNION ALL
-              SELECT 'Admin BEM',       '0000000002', 'admin',      '${adminPassword}',      FALSE
-              UNION ALL
-              SELECT 'Olivia Delisa',   '2311527001', 'olivia',     '${userPassword}',       FALSE
-            ) AS tmp
-            WHERE NOT EXISTS (
-              SELECT username FROM users
-              WHERE username IN ('superadmin', 'admin', 'olivia')
-            )
-          `);
-          console.log("  ✓ Default users seeded");
+          // ✅ KODE BARU - aman dari duplicate
+const defaultUsers = [
+  { name: 'Super Admin BEM', nim: '0000000001', username: 'superadmin', password: superadminPassword },
+  { name: 'Admin BEM',       nim: '0000000002', username: 'admin',      password: adminPassword      },
+  { name: 'Olivia Delisa',   nim: '2311527001', username: 'olivia',     password: userPassword       },
+];
+
+for (const u of defaultUsers) {
+  await query(
+    `INSERT IGNORE INTO users (name, nim, username, password, must_change_password)
+     VALUES (?, ?, ?, ?, FALSE)`,
+    [u.name, u.nim, u.username, u.password]
+  );
+}
+console.log("  ✓ Default users seeded");
 
           // ── 6. User Periods ───────────────────────────────────────────────
           if (defaultPeriodId) {
