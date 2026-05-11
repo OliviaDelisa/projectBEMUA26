@@ -4,7 +4,7 @@ import API from "../../config/api";
 
 const SEKRE_LAT    = -0.916996;
 const SEKRE_LNG    = 100.454804;
-const RADIUS_METER = 50;
+const RADIUS_METER = 5000;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -76,7 +76,7 @@ export default function Home() {
     const hari       = now.getDay();
     const totalMenit = now.getHours() * 60 + now.getMinutes();
     if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
-    if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
+    if (totalMenit < 1 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
     if (totalMenit >= 18 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
     return { bisa: true, pesan: null };
   };
@@ -203,10 +203,13 @@ export default function Home() {
 
       // ── FIX: hanya tampilkan entry yang punya _sortTime (sudah ada aksi),
       //    lalu sort dan strict slice 5 ──────────────────────────────────
-      const merged = [...sekreTagged, ...allKegiatan]
-        .filter(item => !!item._sortTime)  // buang entry tanpa waktu
+      const allItems = [...sekreTagged, ...allKegiatan];
+      console.log("sekreTagged:", sekreTagged.map(i => ({ date: i.date, _sortTime: i._sortTime, status: i.status })));
+
+      const merged = allItems
+        .filter(item => !!item._sortTime)
         .sort((a, b) => parseDBDateTime(b._sortTime) - parseDBDateTime(a._sortTime))
-        .slice(0, 5);                       // strict 5 baris
+        .slice(0, 5);
 
       setHistory(merged);
     } catch {
@@ -846,7 +849,10 @@ export default function Home() {
                   {history.map((item, idx) => {
                     // FIX: pakai parseDBDateTime untuk semua parsing waktu
                     // Untuk tidak hadir sekre, check_in_time null → fallback ke date
-                  const dtStr      = item.check_in_time || item.date;
+                 const rawDate = item.check_in_time || item.date || item._sortTime;
+                  const dtStr = rawDate instanceof Date
+                    ? `${rawDate.getFullYear()}-${String(rawDate.getMonth()+1).padStart(2,'0')}-${String(rawDate.getDate()).padStart(2,'0')}`
+                    : String(rawDate || "");
                     const d          = dtStr ? parseDBDateTime(dtStr) : null;
                     const timeStr    = item.check_in_time
                       ? parseDBDateTime(item.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
@@ -875,9 +881,9 @@ export default function Home() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                               <p className="text-xs font-semibold text-gray-700">
-                                {hariStr && `${hariStr}, `}{dateStr}{timeStr ? ` · ${timeStr}` : ""}
-                              </p>
+                            <p className="text-xs font-semibold text-gray-700">
+                              {hariStr && `${hariStr}, `}{dateStr}{timeStr ? ` · ${timeStr}` : ""}
+                            </p>
                               <span className={`text-xs font-semibold shrink-0 ${isHadir ? "text-green-500" : "text-red-400"}`}>
                                 {isHadir ? "Hadir" : "Tidak Hadir"}
                               </span>
