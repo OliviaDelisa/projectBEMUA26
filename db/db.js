@@ -13,6 +13,9 @@ const db = mysql.createPool({
    dateStrings:        true,
   
 });
+  db.on('connection', (connection) => {
+  connection.query("SET time_zone = '+07:00'");
+});
 
 // Test koneksi saat pertama kali file ini di-require
 db.getConnection((err, connection) => {
