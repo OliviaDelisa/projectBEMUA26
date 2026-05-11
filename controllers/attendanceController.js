@@ -2,7 +2,7 @@ const db = require("../db/db");
 
 const SEKRE_LAT    = -0.916996;
 const SEKRE_LNG    = 100.454804;
-const RADIUS_METER = 5000;
+const RADIUS_METER = 50;
 
 // ── Helper: format tanggal lokal (WIB) tanpa terpengaruh UTC ────
 function getLocalDateString(date = new Date()) {
@@ -32,7 +32,7 @@ function cekWaktuAbsensiSekre(now = new Date()) {
   if (hari === 0 || hari === 6) {
     return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
   }
-  if (totalMenit < 1 * 60) {
+  if (totalMenit < 8 * 60) {
     return { bisa: false, pesan: "Absensi sekre belum dibuka (mulai pukul 08.00 WIB)" };
   }
   if (totalMenit >= 18 * 60) {

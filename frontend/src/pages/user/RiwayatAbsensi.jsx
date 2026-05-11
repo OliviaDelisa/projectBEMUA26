@@ -454,9 +454,9 @@ export default function RiwayatAbsensi({ onBack }) {
                 return (
                   <button key={item.id || idx}
                     onClick={() => setDetailModal({ ...item, _jenis: tabAktif, _judul: judul })}
-                    className="w-full text-left px-4 py-4 flex items-start gap-3 hover:bg-gray-50 active:bg-gray-100 transition"
+                    className={`w-full text-left px-4 py-4 flex gap-3 hover:bg-gray-50 active:bg-gray-100 transition ${isHadir ? "items-start" : "items-center"}`}
                   >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 
                       ${isHadir ? "bg-green-50" : "bg-red-50"}`}>
                       {isHadir ? (
                         <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

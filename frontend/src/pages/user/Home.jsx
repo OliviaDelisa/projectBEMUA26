@@ -4,7 +4,7 @@ import API from "../../config/api";
 
 const SEKRE_LAT    = -0.916996;
 const SEKRE_LNG    = 100.454804;
-const RADIUS_METER = 5000;
+const RADIUS_METER = 50;
 
 function hitungJarak(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -78,7 +78,7 @@ export default function Home() {
     const hari       = now.getDay();
     const totalMenit = now.getHours() * 60 + now.getMinutes();
     if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
-    if (totalMenit < 1 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
+    if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
     if (totalMenit >= 18 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
     return { bisa: true, pesan: null };
   };
@@ -890,9 +890,11 @@ export default function Home() {
                                 {isHadir ? "Hadir" : "Tidak Hadir"}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                              {item.location_name || (isKegiatan ? "Lokasi Kegiatan" : "Sekre BEM")}
-                            </p>
+                            {(isHadir || isKegiatan) && (
+                              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                                {item.location_name || (isKegiatan ? "Lokasi Kegiatan" : "Sekre BEM")}
+                              </p>
+                            )}
                             {!isKegiatan && item.distance_meters != null && (
                               <p className="text-xs text-gray-400 mt-0.5">{formatJarak(item.distance_meters)} dari Sekre BEM</p>
                             )}
