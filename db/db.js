@@ -10,6 +10,7 @@ const db = mysql.createPool({
   connectionLimit:    10,   // maksimal 10 koneksi berjalan bersamaan
   queueLimit:         0,
   timezone:           '+07:00',
+   dateStrings:        true,
   
 });
 
