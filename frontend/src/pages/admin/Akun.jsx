@@ -24,7 +24,7 @@ const daftarKementerian = [
   "Kebijakan Daerah","Kebijakan Nasional","Kebijakan Kampus","Riset dan Keilmuan",
   "Sekretaris Kabinet","Lingkungan Hidup","Sosial dan Masyarakat","Dalam Negeri",
   "Luar Negeri","Advokasi Kesejahteraan Mahasiswa","Pergerakan Perempuan",
-  "Mitra Event dan Bisnis","Audit Internal","Keuangan",
+  "Media Event dan Bisnis","Audit Internal","Keuangan",
 ];
 
 export default function Akun() {

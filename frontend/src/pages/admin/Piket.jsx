@@ -9,7 +9,7 @@ const KEMENTERIAN_LIST = [
   "Riset dan Keilmuan", "Sekretaris Kabinet", "Lingkungan Hidup",
   "Sosial dan Masyarakat", "Dalam Negeri", "Luar Negeri",
   "Advokasi Kesejahteraan Mahasiswa", "Pergerakan Perempuan",
-  "Mira Event dan Bisnis", "Audit Internal", "Keuangan",
+  "Media Event dan Bisnis", "Audit Internal", "Keuangan",
 ];
 
 const MENKO_LIST = [
@@ -36,7 +36,7 @@ const KEMEN_ABBR = {
   "Luar Negeri":                        "LUNEG",
   "Advokasi Kesejahteraan Mahasiswa":   "ADKESMA",
   "Pergerakan Perempuan":               "PP",
-  "Mitra Event dan Bisnis":             "MEB",
+  "Media Event dan Bisnis":             "MEB",
   "Audit Internal":                     "AI",
   "Keuangan":                           "KEUANGAN",
 };
