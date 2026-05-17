@@ -34,7 +34,7 @@ const daftarKementerian = [
   "Riset dan Keilmuan", "Sekretaris Kabinet", "Lingkungan Hidup",
   "Sosial dan Masyarakat", "Dalam Negeri", "Luar Negeri",
   "Advokasi Kesejahteraan Mahasiswa", "Pergerakan Perempuan",
-  "Media Event dan Bisnis", "Audit Internal", "Keuangan",
+  "Mitra Event dan Bisnis", "Audit Internal", "Keuangan",
 ];
 
 // Urutan kelompok prioritas (tampil paling atas di rekap)
