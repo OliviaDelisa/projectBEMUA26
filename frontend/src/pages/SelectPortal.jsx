@@ -24,8 +24,8 @@ export default function SelectPortal() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-white px-6">
       
       <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold text-gray-900">Selamat datang</h1>
-        <p className="text-gray-400 mt-2">Pilih pintu masuk untuk melanjutkan</p>
+        <h1 className="text-3xl font-bold text-gray-900"></h1>
+        <p className="text-gray-400 mt-2"></p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 w-full max-w-4xl">
@@ -57,9 +57,7 @@ export default function SelectPortal() {
       </div>
 
       <footer className="mt-16">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-gray-300 font-bold">
-          BEM KM Universitas Andalas
-        </p>
+    
       </footer>
 
     </div>

@@ -41,6 +41,7 @@ export default function Akun() {
   const [search, setSearch]                       = useState("");
   const [filterJabatan, setFilterJabatan]         = useState("");
   const [filterKementerian, setFilterKementerian] = useState("");
+  const [filterRole, setFilterRole] = useState("");
 
   // ── transfer state
   const [selectedIds, setSelectedIds]       = useState(new Set());
@@ -121,8 +122,9 @@ export default function Akun() {
   const displayData = useMemo(() => members.filter(m =>
     (m.name ?? "").toLowerCase().includes(search.toLowerCase()) &&
     (!filterJabatan     || m.jabatan     === filterJabatan) &&
-    (!filterKementerian || m.kementerian === filterKementerian)
-  ), [members, search, filterJabatan, filterKementerian]);
+    (!filterKementerian || m.kementerian === filterKementerian) &&
+     (!filterRole        || m.role        === filterRole) 
+  ), [members, search, filterJabatan, filterKementerian, filterRole]);
 
   const txFiltered = useMemo(() => members.filter(m =>
     (m.name ?? "").toLowerCase().includes(txSearch.toLowerCase()) ||
@@ -675,7 +677,7 @@ export default function Akun() {
           {mode === "list" && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4" style={{ borderLeftColor: UNAND_GREEN }}>
+                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4 min-w-0" style={{ borderLeftColor: UNAND_GREEN }}>
                   <span className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: UNAND_GREEN }}>Periode</span>
                   {periods.length === 0 ? (
                     <span className="text-sm text-gray-400 italic">Belum ada</span>
@@ -714,27 +716,42 @@ export default function Akun() {
                 </div>
               )}
               {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">⚠️ {error}</div>}
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4">
+              {/* Mobile: stack — Desktop: satu baris */}
+              <div className="flex flex-col md:flex-row md:items-center gap-2 mb-3 md:mb-0">
+                <input
+                  placeholder="Cari nama..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="border p-2 rounded-xl w-full md:max-w-xs outline-none bg-gray-50 text-sm"
+                />
+                <select value={filterJabatan} onChange={e => setFilterJabatan(e.target.value)}
+                  className="border p-2 rounded-xl bg-white text-sm outline-none w-full md:w-auto">
+                  <option value="">Semua Jabatan</option>
+                  {daftarJabatan.map(j => <option key={j} value={j}>{j}</option>)}
+                </select>
+                <select value={filterKementerian} onChange={e => setFilterKementerian(e.target.value)}
+                  className="border p-2 rounded-xl bg-white text-sm outline-none w-full md:w-auto">
+                  <option value="">Semua Kementerian</option>
+                  {daftarKementerian.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+                <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+                className="border p-2 rounded-xl bg-white text-sm outline-none w-full md:w-auto">
+                <option value="">Semua Role</option>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+                <option value="superadmin">Superadmin</option>
+              </select>
+                {(search || filterJabatan || filterKementerian || filterRole) && (
+                  <button type="button"
+                    onClick={() => { setSearch(""); setFilterJabatan(""); setFilterKementerian(""); setFilterRole(""); }}
+                    className="text-xs text-red-500 font-bold hover:underline self-start md:self-auto">
+                    Reset
+                  </button>
+                )}
 
-              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4 flex flex-wrap gap-3 items-center">
-                <div className="flex-1 flex gap-2 flex-wrap">
-                  <input placeholder="Cari nama..." value={search} onChange={e => setSearch(e.target.value)}
-                    className="border p-2 rounded-xl flex-1 md:max-w-xs outline-none bg-gray-50 text-sm" />
-                  <select value={filterJabatan} onChange={e => setFilterJabatan(e.target.value)}
-                    className="border p-2 rounded-xl bg-white text-sm outline-none">
-                    <option value="">Semua Jabatan</option>
-                    {daftarJabatan.map(j => <option key={j} value={j}>{j}</option>)}
-                  </select>
-                  <select value={filterKementerian} onChange={e => setFilterKementerian(e.target.value)}
-                    className="border p-2 rounded-xl bg-white text-sm outline-none">
-                    <option value="">Semua Kementerian</option>
-                    {daftarKementerian.map(k => <option key={k} value={k}>{k}</option>)}
-                  </select>
-                  {(search || filterJabatan || filterKementerian) && (
-                    <button type="button" onClick={() => { setSearch(""); setFilterJabatan(""); setFilterKementerian(""); }}
-                      className="text-xs text-red-500 font-bold hover:underline">Reset</button>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 border-l pl-3">
+                {/* Tombol aksi: di desktop langsung di baris yang sama (ml-auto) */}
+                <div className="hidden md:flex items-center gap-2 ml-auto border-l pl-3">
                   {periodeAktif && periodeTujuan.length > 0 && members.length > 0 && (
                     <button type="button" onClick={enterTransferMode}
                       className="px-3 py-2 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition flex items-center gap-1.5">
@@ -755,11 +772,33 @@ export default function Akun() {
                 </div>
               </div>
 
+              {/* Tombol aksi: di mobile saja (baris terpisah) */}
+              <div className="flex md:hidden gap-2 pt-3 border-t border-gray-100 mt-1">
+                {periodeAktif && periodeTujuan.length > 0 && members.length > 0 && (
+                  <button type="button" onClick={enterTransferMode}
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    Transfer Anggota
+                  </button>
+                )}
+                <button type="button" onClick={openAdd} disabled={!periodeAktif}
+                  className="flex-1 text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition shadow-sm flex items-center justify-center gap-2 text-sm disabled:opacity-40"
+                  style={{ backgroundColor: UNAND_GREEN }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                  Tambah Anggota
+                </button>
+              </div>
+            </div>
               {loading ? (
                 <div className="text-center py-16 text-gray-400 font-medium">Memuat data…</div>
               ) : (
-                <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-200">
-                  <table className="w-full text-left border-collapse">
+                <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left border-collapse">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="p-4 border-b text-gray-700 font-bold text-sm">Nama</th>
@@ -814,6 +853,7 @@ export default function Akun() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </>

@@ -12,7 +12,7 @@ const HIERARKI_JABATAN = {
     "Menteri Koordinator", "Staf Kepresidenan",
   ],
   "Audit Internal": [
-    "Kepala Audit Internal", "Auditor", "Staf Audit Internal",
+     "Inspektur", "Sekretaris Inspektur", "Staff Ahli",
   ],
   _kementerian: [
     "Menteri", "Sekretaris Menteri", "Staf Ahli Menteri",

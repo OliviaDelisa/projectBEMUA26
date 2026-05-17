@@ -46,7 +46,7 @@ const HIERARKI_JABATAN = {
     "Menteri Koordinator", "Staf Kepresidenan",
   ],
   "Audit Internal": [
-    "Kepala Audit Internal", "Auditor", "Staf Audit Internal",
+    "Inspektur", "Sekretaris Inspektur", "Staff Ahli",
   ],
   _kementerian: [
     "Menteri", "Sekretaris Menteri", "Staf Ahli Menteri",
@@ -282,6 +282,19 @@ export default function Absensi() {
                 </FilterGroup>
               )}
 
+              {/* Tombol export — hanya tampil di tab rekap, rata kanan */}
+              {activeView === "rekap" && (
+                <div className="flex flex-col gap-1.5 ml-auto shrink-0">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest opacity-0">Export</label>
+                  <button
+                    onClick={() => handleExport({ rekapData, rekapDates, rekapDateStart, rekapDateEnd, filterKem })}
+                    className="bg-[#00923D] hover:bg-green-700 text-white font-bold py-1.5 px-5 rounded-lg flex items-center gap-2 text-xs uppercase tracking-widest transition-all shadow-md shadow-green-100 whitespace-nowrap h-[34px]"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
+                  </button>
+                </div>
+              )}
+
               {/* Indikator jumlah hasil */}
               {searchQuery && (
                 <div className="flex items-end pb-1.5">
@@ -308,53 +321,7 @@ export default function Absensi() {
                 <LegendItem label="Alfa (Tidak Absen)"   status="alfa"      />
               </div>
             )}
-          </div>
-
-          {/* ── Panel export Excel (hanya di tab rekap) ── */}
-          {activeView === "rekap" && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 animate-in slide-in-from-bottom-2">
-              <h3 className="font-bold text-gray-700 flex items-center gap-2 mb-5 text-sm uppercase tracking-tight">
-                <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                Export Data Kehadiran (Excel)
-              </h3>
-
-              <div className="flex flex-wrap gap-6 items-end">
-                <FilterGroup label="Filter Kementerian">
-                  <select
-                    className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500 shadow-sm min-w-[180px]"
-                    value={filterKem}
-                    onChange={(e) => setFilterKem(e.target.value)}
-                  >
-                    <option value="all">Semua Kementerian</option>
-                    {daftarKementerian.map((kem, idx) => (
-                      <option key={idx} value={kem}>{kem}</option>
-                    ))}
-                  </select>
-                </FilterGroup>
-
-                <FilterGroup label="Rentang Tanggal Export">
-                  <div className="flex items-center gap-2 bg-white p-1 px-3 border border-gray-200 rounded-lg shadow-sm min-w-[300px]">
-                    <input type="date" className="text-xs outline-none bg-transparent py-1" value={rekapDateStart} onChange={(e) => setRekapDateStart(e.target.value)} />
-                    <span className="text-gray-300 text-xs font-bold">s/d</span>
-                    <input type="date" className="text-xs outline-none bg-transparent py-1" value={rekapDateEnd}   onChange={(e) => setRekapDateEnd(e.target.value)} />
-                  </div>
-                </FilterGroup>
-
-                <button
-                  onClick={() => handleExport({ rekapData, rekapDates, rekapDateStart, rekapDateEnd, filterKem })}
-                  className="bg-[#00923D] hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg flex items-center gap-2 text-xs uppercase tracking-widest transition-all shadow-md shadow-green-100"
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> Generate Report
-                </button>
-              </div>
-
-              {exportMsg && (
-                <div className="mt-5 p-3 bg-green-50 text-green-700 text-[11px] font-bold rounded-lg border border-green-100 flex items-center gap-2 italic">
-                  {exportMsg}
-                </div>
-              )}
-            </div>
-          )}
+          </div>          
         </main>
       </div>
 

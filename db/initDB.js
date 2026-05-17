@@ -234,10 +234,9 @@ connection.connect(async (err) => {
           console.log("\nSeeding default data...");
 
           
-          const periods         = await query(`SELECT id FROM periods LIMIT 1`);
+         const periods         = await query(`SELECT id FROM periods LIMIT 1`);
           const defaultPeriodId = periods[0]?.id;
           console.log("  ✓ Default period seeded");
-
           // ── 2. Roles ──────────────────────────────────────────────────────
           const defaultRoles = [
             {

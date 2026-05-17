@@ -132,10 +132,10 @@ const StatBox = ({ label, value, sub, icon, color, active, onClick }) => {
       className={`relative bg-white rounded-xl border overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md ${active ? borderActive[color] + " shadow-sm" : "border-gray-200 shadow-sm"}`}
     >
       <div className={`absolute top-0 left-0 right-0 h-0.5 ${topBar[color]}`} />
-      <div className="p-5">
+      <div className="p-3 md:p-5">
         <div className={`mb-3 ${iconColor[color]}`}>{icon}</div>
         <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">{label}</div>
-        <div className="text-3xl font-semibold text-gray-800 tabular-nums">{value}</div>
+        <div className="text-2xl md:text-3xl font-semibold text-gray-800 tabular-nums">{value}</div>
         <div className="text-[11px] text-gray-400 mt-1">{sub}</div>
       </div>
     </div>
@@ -144,8 +144,10 @@ const StatBox = ({ label, value, sub, icon, color, active, onClick }) => {
 
 // ── Leaflet map style injected once ──────────────────────────────────────────
 const LEAFLET_OVERRIDE = `
-#kg-map { width:110%; height:580px; border-radius:10px; border:1px solid #e5e7eb; margin-top:8px; }
-.kg-geocode-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:white; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:9999; overflow:hidden; max-height:200px; overflow-y:auto; }
+#kg-map { width:100%; height:300px; border-radius:10px; border:1px solid #e5e7eb; margin-top:8px; }
+@media (min-width: 768px) {
+  #kg-map { height:420px; }
+}
 `;
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -573,7 +575,7 @@ const end   = parseDBDateTime(k.end_datetime);
         <Topbar title="Manajemen Kegiatan" />
 
         {/* Top action bar */}
-        <div className="flex justify-end px-7 py-4">
+        <div className="flex justify-end px-4 md:px-7 py-4">
           <button
             onClick={() => {
               setIsEditing(null); setEditingStatus(null); setFormErrors({});
@@ -590,10 +592,10 @@ const end   = parseDBDateTime(k.end_datetime);
           </button>
         </div>
 
-        <div className="px-7 pb-7 space-y-5 overflow-y-auto">
+        <div className="px-4 md:px-7 pb-7 space-y-5 overflow-y-auto">
 
           {/* Stat cards */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatBox label="Total Kegiatan"  value={stats.total}       sub="Semua kegiatan"       icon={<LayoutGrid  size={18}/>} color=""      active={activeFilter === "semua"}       onClick={() => setActiveFilter("semua")} />
             <StatBox label="Mendatang"        value={stats.mendatang}   sub="Segera dilaksanakan"  icon={<Calendar    size={18}/>} color="blue"  active={activeFilter === "mendatang"}   onClick={() => setActiveFilter("mendatang")} />
             <StatBox label="Berlangsung"      value={stats.berlangsung} sub="Sedang berjalan"      icon={<Clock       size={18}/>} color="amber" active={activeFilter === "berlangsung"} onClick={() => setActiveFilter("berlangsung")} />
@@ -602,13 +604,13 @@ const end   = parseDBDateTime(k.end_datetime);
 
           {/* Kegiatan list */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <LayoutGrid size={15} className="text-emerald-500" />
                 {activeFilter === "semua" ? "Semua Kegiatan" : activeFilter === "mendatang" ? "Kegiatan Mendatang" : activeFilter === "berlangsung" ? "Kegiatan Berlangsung" : "Kegiatan Selesai"}
                 <span className="text-xs font-normal text-gray-400">({filteredKegiatan.length})</span>
               </div>
-              <div className="relative w-64">
+              <div className="relative w-full md:w-64">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   className="w-full h-9 pl-9 pr-3 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400"
@@ -623,7 +625,7 @@ const end   = parseDBDateTime(k.end_datetime);
               {filteredKegiatan.length === 0 ? (
                 <div className="text-center py-14 text-sm text-gray-400">Belum ada kegiatan</div>
               ) : (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredKegiatan.map((k) => {
                     const s = getStatus(k);
                     const jmlPeserta = Number(k.peserta) || 0;
@@ -703,8 +705,8 @@ const end   = parseDBDateTime(k.end_datetime);
 
         {/* ══ MODAL BUAT/EDIT ══════════════════════════════════════════════ */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden">
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center md:p-4">
+            <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
                 <div>
@@ -734,7 +736,7 @@ const end   = parseDBDateTime(k.end_datetime);
               </div>
 
               {/* Body */}
-              <div className="px-6 py-5 max-h-[75vh] overflow-y-auto">
+              <div className="px-4 md:px-6 py-4 md:py-5 overflow-y-auto flex-1">
                 {currentStep === 1 ? (
                   <div className="space-y-4">
                     {/* Nama */}
@@ -830,25 +832,30 @@ const end   = parseDBDateTime(k.end_datetime);
                     </div>
 
                     {/* Koordinat manual */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Koordinat Manual</label>
-                      <div className="flex gap-2">
-                        {[{ label: "Latitude", key: "lat", ph: "-0.947100" }, { label: "Longitude", key: "lng", ph: "100.417200" }].map(({ label, key, ph }) => (
-                          <div key={key} className="flex-1">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase mb-1">{label}</div>
-                            <input className={`w-full h-9 px-3 text-sm font-mono border rounded-lg outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 transition ${coordError ? "border-red-400" : "border-gray-200"}`}
-                              placeholder={ph} value={coordInput[key]}
-                              onChange={(e) => { setCoordInput((p) => ({ ...p, [key]: e.target.value })); setCoordError(""); }}
-                              onKeyDown={(e) => e.key === "Enter" && handleApplyCoord()} />
-                          </div>
-                        ))}
-                        <button onClick={handleApplyCoord}
-                          className="h-9 mt-5 px-3 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg border border-gray-200 flex items-center gap-1.5 transition whitespace-nowrap">
-                          <Navigation size={12} /> Terapkan
-                        </button>
-                      </div>
-                      {coordError && <p className="text-xs text-red-500 mt-1">{coordError}</p>}
+                   <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Koordinat Manual</label>
+                    <div className="flex gap-2 items-end">
+                      {[{ label: "Latitude", key: "lat", ph: "-0.947100" }, { label: "Longitude", key: "lng", ph: "100.417200" }].map(({ label, key, ph }) => (
+                        <div key={key} className="flex-1 min-w-0">
+                          <div className="text-[10px] font-semibold text-gray-400 uppercase mb-1">{label}</div>
+                          <input
+                            className={`w-full h-9 px-3 text-sm font-mono border rounded-lg outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 transition ${coordError ? "border-red-400" : "border-gray-200"}`}
+                            placeholder={ph}
+                            value={coordInput[key]}
+                            onChange={(e) => { setCoordInput((p) => ({ ...p, [key]: e.target.value })); setCoordError(""); }}
+                            onKeyDown={(e) => e.key === "Enter" && handleApplyCoord()}
+                          />
+                        </div>
+                      ))}
+                      <button
+                        onClick={handleApplyCoord}
+                        className="shrink-0 h-9 px-3 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg border border-gray-200 flex items-center gap-1.5 transition whitespace-nowrap"
+                      >
+                        <Navigation size={12} /> Terapkan
+                      </button>
                     </div>
+                    {coordError && <p className="text-xs text-red-500 mt-1">{coordError}</p>}
+                  </div>
 
                     {/* Map */}
                     <div className="relative">
@@ -1030,8 +1037,8 @@ const end   = parseDBDateTime(k.end_datetime);
                     {rekapKementerian.length === 0 ? (
                       <div className="text-center py-14 text-sm text-gray-400 italic">Belum ada data</div>
                     ) : (
-                      <div className="border border-gray-200 rounded-xl overflow-hidden">
-                        <table className="w-full text-xs">
+                      <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                        <table className="min-w-full text-xs">
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-100">
                               {["Kementerian", "Total", "Hadir", "Alfa", "Kehadiran"].map((h) => (

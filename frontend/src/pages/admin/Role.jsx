@@ -136,11 +136,6 @@ export default function Role() {
     const saveId = `${roleId}-${featureKey}`;
     setSavingKey(saveId);
 
-    setPermissions(prev => ({
-      ...prev,
-      [roleId]: { ...prev[roleId], [featureKey]: newValue },
-    }));
-
     try {
       const res = await fetch(`${API}/permissions`, {
         method: "PUT",
@@ -150,20 +145,22 @@ export default function Role() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
+      // UI baru berubah setelah API sukses
+      setPermissions(prev => ({
+        ...prev,
+        [roleId]: { ...prev[roleId], [featureKey]: newValue },
+      }));
+
       const featureLabel = FEATURE_LIST.flatMap(g => g.items).find(i => i.key === featureKey)?.label ?? featureKey;
       const roleLabel = roles.find(r => r.id === roleId)?.label ?? "";
       setToast({ type: "success", msg: `${featureLabel} ${newValue ? "diaktifkan" : "dinonaktifkan"} untuk ${roleLabel}` });
     } catch (e) {
-      setPermissions(prev => ({
-        ...prev,
-        [roleId]: { ...prev[roleId], [featureKey]: current },
-      }));
+      // Tidak perlu revert karena UI belum diubah
       setToast({ type: "error", msg: e.message });
     } finally {
       setSavingKey(null);
     }
   };
-
   // ── Tambah role ────────────────────────────────────────────────────
   const handleAddRole = async () => {
     if (!newRoleLabel.trim()) return;
