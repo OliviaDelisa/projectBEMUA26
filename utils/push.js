@@ -28,6 +28,15 @@ const saveSubscription = async (userId, subscription) => {
 // Simpan ke tabel notifications
 const saveNotification = async (userId, title, body, type = "general", referenceId = null) => {
   try {
+    const [existing] = await db.promise().query(
+      `SELECT id FROM notifications 
+       WHERE user_id = ? AND title = ? AND body = ? 
+       AND created_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)`,
+      [userId, title, body]
+    );
+    
+    if (existing.length > 0) return;
+
     await db.promise().query(
       `INSERT INTO notifications (user_id, title, body, type, reference_id)
        VALUES (?, ?, ?, ?, ?)`,
