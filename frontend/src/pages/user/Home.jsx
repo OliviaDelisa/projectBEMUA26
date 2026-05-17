@@ -65,6 +65,7 @@ export default function Home() {
   const { isSubscribed, isLoading: loadingNotif, subscribe } = usePushNotification(user?.id); // ← TAMBAH INI
   const [loadingFor, setLoadingFor]                     = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
 
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
@@ -152,6 +153,25 @@ export default function Home() {
     if (showCamera && !capturedPhoto) startCamera();
     return () => { if (!showCamera) stopCamera(); };
   }, [showCamera, capturedPhoto]);
+
+  useEffect(() => {
+  if (!user) return;
+  if (isSubscribed) return;
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "denied") return;
+
+  if (Notification.permission === "granted") {
+    subscribe();
+    return;
+  }
+
+  const promptShown = localStorage.getItem("notif_prompt_shown");
+  if (promptShown === "permanent") return;
+  if (promptShown && Date.now() < parseInt(promptShown)) return;
+
+  const timer = setTimeout(() => setShowNotifPrompt(true), 2000);
+  return () => clearTimeout(timer);
+}, [isSubscribed]);
 
   const fetchUnreadCount = async () => {
   try {
@@ -438,7 +458,60 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
+      {/* ── Modal Aktifkan Notifikasi ── */}
+      {showNotifPrompt && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl mb-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-[#00923D]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-800">Aktifkan Notifikasi</p>
+                <p className="text-xs text-gray-500 mt-0.5">Agar kamu tidak ketinggalan reminder penting</p>
+              </div>
+            </div>
+            <ul className="text-xs text-gray-400 space-y-1.5 ml-1 mb-4">
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                Reminder absensi sekretariat setiap pagi
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                Pengingat jadwal piket kementerian
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                Notifikasi kegiatan yang akan berlangsung
+              </li>
+            </ul>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const tigaHari = Date.now() + 3 * 24 * 60 * 60 * 1000;
+                  localStorage.setItem("notif_prompt_shown", tigaHari.toString());
+                  setShowNotifPrompt(false);
+                }}
+                className="flex-1 h-10 border border-gray-200 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 transition"
+              >
+                Nanti Saja
+              </button>
+              <button
+                onClick={() => {
+                  subscribe();
+                  localStorage.setItem("notif_prompt_shown", "permanent");
+                  setShowNotifPrompt(false);
+                }}
+                className="flex-1 h-10 bg-[#00923D] text-white text-sm font-semibold rounded-xl hover:bg-[#007a32] transition"
+              >
+                Aktifkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── Toast ─────────────────────────────────────────────────────────── */}
       <div style={{
         position: "fixed", top: 24, left: "50%",
@@ -663,6 +736,27 @@ export default function Home() {
           </div>
         ) : (
           <>
+
+          {/* ── Banner Notifikasi Belum Aktif ── */}
+          {!isSubscribed && !showNotifPrompt && "Notification" in window && Notification.permission !== "denied" && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <p className="text-xs text-amber-700 font-medium">Notifikasi belum aktif</p>
+              </div>
+              <button
+                onClick={() => {
+                  subscribe();
+                  localStorage.setItem("notif_prompt_shown", "permanent");
+                }}
+                className="text-xs font-semibold text-amber-700 underline shrink-0"
+              >
+                Aktifkan
+              </button>
+            </div>
+          )}
             {/* ── Notif Piket ── */}
             {homeData?.has_duty && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3">
