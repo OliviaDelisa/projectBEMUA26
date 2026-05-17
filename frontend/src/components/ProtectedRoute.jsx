@@ -20,8 +20,8 @@ if (user.must_change_password && user.must_change_password !== false && user.mus
   if (neutralPaths.includes(location.pathname)) return children;
 
   // ── 2. Halaman publik untuk semua yang sudah login ──
-  const publicPaths = ["/home", "/riwayat-absensi", "/profile"];
-  if (publicPaths.includes(location.pathname)) return children;
+  const publicPaths = ["/home", "/riwayat-absensi", "/profile", "/notifikasi"]; // ← tambah ini
+if (publicPaths.includes(location.pathname)) return children;
 
   // ── 3. Cek permission berdasarkan path (berlaku untuk SEMUA role) ──
   if (userPermissions.includes(location.pathname)) return children;

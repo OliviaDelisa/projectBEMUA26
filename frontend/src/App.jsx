@@ -19,6 +19,7 @@ import Akun from "./pages/admin/Akun";
 import Periode from "./pages/admin/Periode";
 import Role from "./pages/admin/Role";
 import Profile from "./pages/Profile";
+import Notifikasi from "./pages/Notifikasi";
 
 // ── Halaman Anggota
 import Home from "./pages/user/Home";
@@ -74,9 +75,11 @@ function AppRoutes() {
       <Route path="/home"            element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/riwayat-absensi" element={<ProtectedRoute><RiwayatAbsensiPage /></ProtectedRoute>} />
       <Route path="/profile"         element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/notifikasi"      element={<ProtectedRoute><Notifikasi /></ProtectedRoute>} />  {/* ← pindah ke sini */}
 
       {/* ── 6. FALLBACK ── */}
       <Route path="*" element={<Navigate to="/" replace />} />
+      
     </Routes>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../config/api";
+import usePushNotification from "../../hooks/usePushNotification";
 
 const SEKRE_LAT    = -0.916996;
 const SEKRE_LNG    = 100.454804;
@@ -61,7 +62,9 @@ export default function Home() {
   const [radiusError, setRadiusError]                   = useState(null);
   const [activityRadiusErrors, setActivityRadiusErrors] = useState({});
   const [showProfileMenu, setShowProfileMenu]           = useState(false);
+  const { isSubscribed, isLoading: loadingNotif, subscribe } = usePushNotification(user?.id); // ← TAMBAH INI
   const [loadingFor, setLoadingFor]                     = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
@@ -117,6 +120,7 @@ export default function Home() {
     if (!user) { window.location.href = "/"; return; }
     fetchData();
     ambilLokasiTopbar();
+    fetchUnreadCount();
   }, []);
 
   const ambilLokasiTopbar = () => {
@@ -149,6 +153,14 @@ export default function Home() {
     return () => { if (!showCamera) stopCamera(); };
   }, [showCamera, capturedPhoto]);
 
+  const fetchUnreadCount = async () => {
+  try {
+    const res  = await fetch(`${API}/notification/unread-count/${user.id}`);
+    const data = await res.json();
+    setUnreadCount(data.count || 0);
+  } catch {}
+};
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -157,6 +169,7 @@ export default function Home() {
         fetch(`${API}/attendance/secretariat/history/${user.id}?limit=10`),
         fetch(`${API}/attendance/activity/history/${user.id}?limit=10`),
       ]);
+    
 
       const homeJson   = await homeRes.json();
       const sekreHist  = await sekreHistRes.json();
@@ -587,11 +600,24 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 mt-1 shrink-0">
-            <button className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center">
+            <button
+              onClick={isSubscribed ? () => navigate("/notifikasi") : subscribe}
+              disabled={loadingNotif}
+              title={isSubscribed ? "Lihat notifikasi" : "Aktifkan notifikasi"}
+              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center relative"
+            >
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
+              {isSubscribed && unreadCount > 0 ? (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border border-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              ) : isSubscribed ? (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-green-400 rounded-full border border-white" />
+              ) : null}
             </button>
+
             <div className="relative">
               <button onClick={() => setShowProfileMenu(v => !v)}
                 className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 transition flex items-center justify-center">

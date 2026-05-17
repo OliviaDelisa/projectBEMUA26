@@ -189,6 +189,20 @@ connection.connect(async (err) => {
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
       `;
+      const createPushSubsTable = `
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id                INT AUTO_INCREMENT PRIMARY KEY,
+      user_id           INT  NOT NULL,
+      endpoint          TEXT NOT NULL,
+      p256dh            TEXT,
+      auth              TEXT,
+      subscription_json TEXT NOT NULL,
+      created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_user_endpoint (user_id, endpoint(200)),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `;
 
       // ─────────────────────────────────────────────────────────────────────
       // RUN ALL CREATE TABLE QUERIES
@@ -206,6 +220,7 @@ connection.connect(async (err) => {
         { sql: createActAttTable,          name: "activity_attendance"    },
         { sql: createDutyTable,            name: "duty_schedules"         },
         { sql: createNotifTable,           name: "notifications"          },
+        { sql: createPushSubsTable, name: "push_subscriptions" },
       ];
 
       const runQueries = (index) => {

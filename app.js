@@ -15,6 +15,7 @@ const activityRoutes        = require("./routes/activityRoutes");
 const memberRoutes          = require("./routes/memberRoute");
 const periodRoutes          = require("./routes/periodRoutes");
 const piketRoutes           = require("./routes/piketRoutes");
+const notificationRoutes    = require("./routes/notification");
 
 const app = express();
 
@@ -32,8 +33,10 @@ app.use("/api/activities",       activityRoutes);
 app.use("/api/members",          memberRoutes);
 app.use("/api/periode",          periodRoutes);
 app.use("/api/piket",            piketRoutes);
+app.use("/api/notification",     notificationRoutes);
 app.use("/api/roles",            require("./routes/roles"));
 app.use("/api/permissions",      require("./routes/permission"));
+
 
 // ─── TEST ───────────────────────────────
 app.get("/api", (req, res) => {
