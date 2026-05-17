@@ -48,6 +48,15 @@ const saveNotification = async (userId, title, body, type = "general", reference
 };
 
 const sendToUser = async (userId, payload, type = "general", referenceId = null) => {
+  // Cek dulu apakah notif sama sudah dikirim dalam 2 menit terakhir
+  const [existing] = await db.promise().query(
+    `SELECT id FROM notifications 
+     WHERE user_id = ? AND title = ? AND body = ? 
+     AND created_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)`,
+    [userId, payload.title, payload.body]
+  );
+  if (existing.length > 0) return;
+
   const [rows] = await db.promise().query(
     `SELECT id, subscription_json FROM push_subscriptions WHERE user_id = ?`,
     [userId]
@@ -55,6 +64,7 @@ const sendToUser = async (userId, payload, type = "general", referenceId = null)
 
   // Simpan ke riwayat notifikasi
   await saveNotification(userId, payload.title, payload.body, type, referenceId);
+
 
   for (const row of rows) {
     try {
