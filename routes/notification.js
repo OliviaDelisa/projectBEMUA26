@@ -154,12 +154,12 @@ cron.schedule("* * * * *", async () => {
       FROM activities a
       WHERE a.is_active = TRUE
         AND (
-          a.start_datetime BETWEEN
+         a.start_datetime BETWEEN
             DATE_ADD(NOW(), INTERVAL 119 MINUTE) AND
-            DATE_ADD(NOW(), INTERVAL 121 MINUTE)
-          OR
-          a.start_datetime BETWEEN
-            DATE_SUB(NOW(), INTERVAL 1 MINUTE) AND
+            DATE_ADD(NOW(), INTERVAL 120 MINUTE)
+            OR
+            a.start_datetime BETWEEN
+            DATE_ADD(NOW(), INTERVAL 0 MINUTE) AND
             DATE_ADD(NOW(), INTERVAL 1 MINUTE)
         )
     `);
