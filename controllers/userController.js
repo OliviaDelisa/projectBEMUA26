@@ -256,11 +256,12 @@ exports.deleteUser = (req, res) => {
 exports.getUserPermissions = (req, res) => {
   const { id } = req.params;
   const sql = `
-    SELECT GROUP_CONCAT(p.path) AS permissions
+    SELECT GROUP_CONCAT(DISTINCT p.path) AS permissions
     FROM user_periods up
     JOIN role_permissions rp ON rp.role_id = up.role_id
     JOIN permissions p ON p.id = rp.permission_id
     WHERE up.user_id = ? AND up.is_active = TRUE
+    AND p.path IS NOT NULL
   `;
   db.query(sql, [id], (err, result) => {
     if (err) return res.status(500).json({ message: "Gagal ambil permissions" });

@@ -9,11 +9,13 @@ export default function useRefreshPermissions() {
     const user = JSON.parse(stored);
     if (!user?.id) return;
 
+    // Hanya refresh kalau permissions kosong
+    if (Array.isArray(user.permissions) && user.permissions.length > 0) return;
+
     fetch(`${API}/users/${user.id}/permissions`)
       .then((r) => r.json())
       .then(({ permissions }) => {
         const updated = { ...user, permissions };
-        // Simpan ke storage yang sama
         if (localStorage.getItem("user")) {
           localStorage.setItem("user", JSON.stringify(updated));
         } else {
