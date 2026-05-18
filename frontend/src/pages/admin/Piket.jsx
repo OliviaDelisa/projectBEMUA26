@@ -4,7 +4,7 @@ import Topbar from "../../components/Topbar";
 import API from "../../config/api";
 
 const KEMENTERIAN_LIST = [
-  "Kepresidenan", "Komunikasi dan Informasi", "Pengembangan Sumber Daya Manusia",
+  "Kepresidenan", "Komunikasi dan Informasi", "Pengembangan Sumber Daya Mahasiswa",
   "Kebijakan Daerah", "Kebijakan Nasional", "Kebijakan Kampus",
   "Riset dan Keilmuan", "Sekretaris Kabinet", "Lingkungan Hidup",
   "Sosial dan Masyarakat", "Dalam Negeri", "Luar Negeri",
@@ -23,7 +23,7 @@ const MENKO_LIST = [
 const KEMEN_ABBR = {
   "Kepresidenan": "PRESIDEN",
   "Komunikasi dan Informasi": "KOMINFO",
-  "Pengembangan Sumber Daya Manusia": "PSDM",
+  "Pengembangan Sumber Daya Mahasiswa": "PSDM",
   "Kebijakan Daerah": "JAKDA",
   "Kebijakan Nasional": "JAKNAS",
   "Kebijakan Kampus": "JAKKAM",

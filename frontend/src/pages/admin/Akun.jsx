@@ -20,7 +20,7 @@ const daftarJabatan = [
   "Staff Ahli",
 ];
 const daftarKementerian = [
-  "Kepresidenan","Komunikasi dan Informasi","Pengembangan Sumber Daya Manusia",
+  "Kepresidenan","Komunikasi dan Informasi","Pengembangan Sumber Daya Mahasiswa",
   "Kebijakan Daerah","Kebijakan Nasional","Kebijakan Kampus","Riset dan Keilmuan",
   "Sekretaris Kabinet","Lingkungan Hidup","Sosial dan Masyarakat","Dalam Negeri",
   "Luar Negeri","Advokasi Kesejahteraan Mahasiswa","Pergerakan Perempuan",
