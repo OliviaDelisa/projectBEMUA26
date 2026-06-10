@@ -204,6 +204,50 @@ connection.connect(async (err) => {
     )
   `;
 
+  const createKategoriAspirasiTable = `
+  CREATE TABLE IF NOT EXISTS kategori_aspirasi (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nama_kategori VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`;
+
+const createAspirasiTable = `
+  CREATE TABLE IF NOT EXISTS aspirasi (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    nama VARCHAR(100) DEFAULT NULL,
+    fakultas VARCHAR(100) NOT NULL,
+
+    kategori_id INT NOT NULL,
+
+    isi TEXT NOT NULL,
+
+    foto VARCHAR(255) DEFAULT NULL,
+
+    status ENUM(
+      'baru',
+      'dibaca',
+      'diproses',
+      'selesai'
+    ) DEFAULT 'baru',
+
+    prioritas ENUM(
+      'normal',
+      'urgent'
+    ) DEFAULT 'normal',
+
+    catatan_internal TEXT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (kategori_id)
+      REFERENCES kategori_aspirasi(id)
+      ON DELETE RESTRICT
+  )
+`;
+
       // ─────────────────────────────────────────────────────────────────────
       // RUN ALL CREATE TABLE QUERIES
       // ─────────────────────────────────────────────────────────────────────
@@ -221,6 +265,9 @@ connection.connect(async (err) => {
         { sql: createDutyTable,            name: "duty_schedules"         },
         { sql: createNotifTable,           name: "notifications"          },
         { sql: createPushSubsTable, name: "push_subscriptions" },
+
+        { sql: createKategoriAspirasiTable, name: "kategori_aspirasi"     },
+        { sql: createAspirasiTable,         name: "aspirasi"              },
       ];
 
       const runQueries = (index) => {
@@ -281,6 +328,27 @@ connection.connect(async (err) => {
             );
           }
           console.log("  ✓ Default roles seeded");
+
+          // ── Default Kategori Aspirasi ─────────────────────────────
+
+const defaultKategoriAspirasi = [
+  "Akademik",
+  "Fasilitas Kampus",
+  "Pelayanan Fakultas",
+  "Organisasi Mahasiswa",
+  "Keuangan",
+  "Lainnya"
+];
+
+for (const kategori of defaultKategoriAspirasi) {
+  await query(
+    `INSERT IGNORE INTO kategori_aspirasi (nama_kategori)
+     VALUES (?)`,
+    [kategori]
+  );
+}
+
+console.log("  ✓ Default kategori aspirasi seeded");
 
           const rolesResult = await query(`SELECT id, name FROM roles`);
           const roleMap     = Object.fromEntries(rolesResult.map(r => [r.name, r.id]));

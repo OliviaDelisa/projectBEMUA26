@@ -18,6 +18,7 @@ import Piket from "./pages/admin/Piket";
 import Akun from "./pages/admin/Akun";
 import Periode from "./pages/admin/Periode";
 import Role from "./pages/admin/Role";
+import Aspirasi from "./pages/admin/Aspirasi";
 import Profile from "./pages/Profile";
 import Notifikasi from "./pages/Notifikasi";
 
@@ -68,8 +69,14 @@ function AppRoutes() {
       <Route path="/role"      element={<ProtectedRoute><Role /></ProtectedRoute>} />
 
       {/* ── 4. ROUTE ASPIRASI (placeholder) ── */}
-      <Route path="/aspirasi"          element={<ProtectedRoute><ComingSoon title="Aspirasi Masuk" /></ProtectedRoute>} />
-      <Route path="/aspirasi/kategori" element={<ProtectedRoute><ComingSoon title="Kategori Aspirasi" /></ProtectedRoute>} />
+      <Route
+        path="/aspirasi"
+        element={
+          <ProtectedRoute>
+              <Aspirasi />
+          </ProtectedRoute>
+        }
+        />
 
       {/* ── 5. ROUTE ANGGOTA ── */}
       <Route path="/home"            element={<ProtectedRoute><Home /></ProtectedRoute>} />

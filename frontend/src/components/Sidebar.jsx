@@ -36,7 +36,6 @@ const menus = [
     label: "Manajemen Aspirasi",
     children: [
       { label: "Aspirasi Masuk", path: "/aspirasi"          },
-      { label: "Kategori",       path: "/aspirasi/kategori" },
     ],
   },
 ];
