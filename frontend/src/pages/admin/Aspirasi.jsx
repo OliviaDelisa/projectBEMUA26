@@ -37,7 +37,6 @@ const todayStr = toInputDate(new Date());
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
 
-// ── Chart animation plugin: staggered bar + animated doughnut ─────────────────
 const buildBarOptions = (katUnik) => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -102,14 +101,12 @@ export default function Aspirasi() {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
 
-  // table filters
   const [search,          setSearch]          = useState("");
   const [filterStatus,    setFilterStatus]    = useState("");
   const [filterKat,       setFilterKat]       = useState("");
   const [filterFakultas,  setFilterFakultas]  = useState("");
   const [filterPrioritas, setFilterPrioritas] = useState("");
 
-  // date range
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
 
@@ -125,14 +122,12 @@ export default function Aspirasi() {
   const katChart    = useRef(null);
   const statusChart = useRef(null);
 
-  // ── fetch ──────────────────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
       setLoading(true); setError(null);
       const res = await fetch(`${API_BASE}/aspirasi`, { headers: authHeader() });
       if (!res.ok) throw new Error("Gagal mengambil data");
       const data = await res.json();
-      // Pastikan aspirasi baru di paling atas — sort descending by created_at
       const sorted = [...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setList(sorted);
     } catch (e) { setError(e.message); }
@@ -140,7 +135,6 @@ export default function Aspirasi() {
   };
   useEffect(() => { fetchData(); }, []);
 
-  // ── date-range filtered list (for cards + charts) ──────────────────────────
   const dateFiltered = useMemo(() => {
     if (!dateFrom && !dateTo) return list;
     return list.filter((d) => {
@@ -151,7 +145,6 @@ export default function Aspirasi() {
     });
   }, [list, dateFrom, dateTo]);
 
-  // ── charts ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!dateFiltered.length || !katRef.current || !statusRef.current) return;
 
@@ -193,7 +186,6 @@ export default function Aspirasi() {
     return () => { katChart.current?.destroy(); statusChart.current?.destroy(); };
   }, [dateFiltered]);
 
-  // ── handlers ───────────────────────────────────────────────────────────────
   const handleUpdateStatus = async (id, val) => {
     setUpdatingId(`status-${id}`);
     try {
@@ -247,7 +239,6 @@ export default function Aspirasi() {
   const clearDate = () => { setDateFrom(""); setDateTo(""); };
   const isDateActive = dateFrom || dateTo;
 
-  // ── filtered rows (table) ──────────────────────────────────────────────────
   const katUnik = [...new Set(list.map((d) => d.nama_kategori))];
   const facUnik = [...new Set(list.map((d) => d.fakultas))].sort();
 
@@ -262,9 +253,7 @@ export default function Aspirasi() {
     );
   }, [dateFiltered, search, filterStatus, filterKat, filterFakultas, filterPrioritas]);
 
-  // Sort: newest (baru) first, then by created_at desc
   const rows = [...filtered].sort((a, b) => {
-    // Aspirasi dengan status "baru" diutamakan di atas
     if (a.status === "baru" && b.status !== "baru") return -1;
     if (b.status === "baru" && a.status !== "baru") return 1;
     return new Date(b.created_at) - new Date(a.created_at);
@@ -275,7 +264,6 @@ export default function Aspirasi() {
     setSearch(""); setFilterStatus(""); setFilterKat(""); setFilterFakultas(""); setFilterPrioritas("");
   };
 
-  // ── stats (based on dateFiltered) ─────────────────────────────────────────
   const stats = [
     { label: "Total",    value: dateFiltered.length,                                            color: GREEN,     sub: "semua aspirasi" },
     { label: "Baru",     value: dateFiltered.filter((d) => d.status === "baru").length,         color: "#3b82f6", sub: "belum ditangani" },
@@ -283,15 +271,14 @@ export default function Aspirasi() {
     { label: "Urgent",   value: dateFiltered.filter((d) => d.prioritas === "urgent").length,    color: "#dc2626", sub: "perlu perhatian" },
   ];
 
-  // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar title="Aspirasi" />
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-5 space-y-4">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="px-3 py-4 space-y-4 sm:px-6 sm:py-5">
 
             {error && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>
@@ -299,22 +286,22 @@ export default function Aspirasi() {
 
             {/* ── Date range bar ─────────────────────────────────────────── */}
             <div className="bg-white rounded-xl border border-gray-100 px-4 py-2.5 flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <input
                   type="date"
                   value={dateFrom}
                   max={dateTo || todayStr}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-green-400 text-gray-600 transition bg-gray-50 hover:bg-white"
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-green-400 text-gray-600 transition bg-gray-50 hover:bg-white w-full xs:w-auto"
                 />
-                <span className="text-gray-200 text-xs font-light select-none">–</span>
+                <span className="text-gray-200 text-xs font-light select-none hidden xs:inline">–</span>
                 <input
                   type="date"
                   value={dateTo}
                   min={dateFrom}
                   max={todayStr}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-green-400 text-gray-600 transition bg-gray-50 hover:bg-white"
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-green-400 text-gray-600 transition bg-gray-50 hover:bg-white w-full xs:w-auto"
                 />
               </div>
 
@@ -331,7 +318,8 @@ export default function Aspirasi() {
             </div>
 
             {/* ── Stat cards ─────────────────────────────────────────────── */}
-            <div className="grid grid-cols-4 gap-3">
+            {/* Mobile: 2x2 grid | Desktop: 4 columns */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {stats.map((s) => (
                 <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
                   <div className="flex items-start justify-between">
@@ -346,14 +334,15 @@ export default function Aspirasi() {
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-5 gap-4">
-              <div className="col-span-3 bg-white rounded-xl border border-gray-100 p-5">
+            {/* Mobile: stacked | Desktop: 3+2 columns */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+              <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 p-5">
                 <p className="text-sm font-semibold text-gray-800">Aspirasi per Kategori</p>
                 <div className="relative h-52 mt-4">
                   <canvas ref={katRef} />
                 </div>
               </div>
-              <div className="col-span-2 bg-white rounded-xl border border-gray-100 p-5">
+              <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-5">
                 <p className="text-sm font-semibold text-gray-800">Status Aspirasi</p>
                 <div className="relative h-28 mt-4 mb-5">
                   <canvas ref={statusRef} />
@@ -379,8 +368,9 @@ export default function Aspirasi() {
             <div className="bg-white rounded-xl border border-gray-100">
 
               {/* Filters */}
-              <div className="px-5 py-3.5 border-b border-gray-100 flex flex-wrap gap-2 items-center">
-                <div className="relative flex-1 min-w-48">
+              <div className="px-4 py-3.5 border-b border-gray-100 sm:px-5">
+                {/* Search full width */}
+                <div className="relative mb-2">
                   <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
                   <input
                     type="text"
@@ -390,24 +380,27 @@ export default function Aspirasi() {
                     className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-3 py-2 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition"
                   />
                 </div>
-                {[
-                  { value: filterStatus,    onChange: setFilterStatus,    ph: "Status",    opts: STATUS_LIST.map((s) => ({ v: s, l: cap(s) })) },
-                  { value: filterPrioritas, onChange: setFilterPrioritas, ph: "Prioritas", opts: [{ v: "normal", l: "Normal" }, { v: "urgent", l: "Urgent" }] },
-                  { value: filterKat,       onChange: setFilterKat,       ph: "Kategori",  opts: katUnik.map((k) => ({ v: k, l: k })) },
-                  { value: filterFakultas,  onChange: setFilterFakultas,  ph: "Fakultas",  opts: facUnik.map((f) => ({ v: f, l: f })) },
-                ].map(({ value, onChange, ph, opts }) => (
-                  <select key={ph} value={value} onChange={(e) => onChange(e.target.value)}
-                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-400 text-gray-600 bg-white cursor-pointer hover:border-gray-300 transition">
-                    <option value="">{ph}</option>
-                    {opts.map(({ v, l }) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                ))}
-                {activeF > 0 && (
-                  <button onClick={resetFilters}
-                    className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg px-3 py-2 transition flex items-center gap-1">
-                    <CloseSmIcon /> Reset ({activeF})
-                  </button>
-                )}
+                {/* Filter selects: wrap on mobile */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  {[
+                    { value: filterStatus,    onChange: setFilterStatus,    ph: "Status",    opts: STATUS_LIST.map((s) => ({ v: s, l: cap(s) })) },
+                    { value: filterPrioritas, onChange: setFilterPrioritas, ph: "Prioritas", opts: [{ v: "normal", l: "Normal" }, { v: "urgent", l: "Urgent" }] },
+                    { value: filterKat,       onChange: setFilterKat,       ph: "Kategori",  opts: katUnik.map((k) => ({ v: k, l: k })) },
+                    { value: filterFakultas,  onChange: setFilterFakultas,  ph: "Fakultas",  opts: facUnik.map((f) => ({ v: f, l: f })) },
+                  ].map(({ value, onChange, ph, opts }) => (
+                    <select key={ph} value={value} onChange={(e) => onChange(e.target.value)}
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-green-400 text-gray-600 bg-white cursor-pointer hover:border-gray-300 transition flex-1 min-w-[110px] sm:flex-none">
+                      <option value="">{ph}</option>
+                      {opts.map(({ v, l }) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  ))}
+                  {activeF > 0 && (
+                    <button onClick={resetFilters}
+                      className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg px-3 py-2 transition flex items-center gap-1 whitespace-nowrap">
+                      <CloseSmIcon /> Reset ({activeF})
+                    </button>
+                  )}
+                </div>
               </div>
 
               {loading ? (
@@ -420,91 +413,151 @@ export default function Aspirasi() {
                   <p className="text-sm text-gray-400">Tidak ada aspirasi ditemukan.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[1000px]">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        {["No","Pengirim","Isi Aspirasi","Kategori","Foto","Status","Prioritas","Catatan",""].map((h) => (
-                          <th key={h} className="text-left text-[11px] font-semibold text-gray-400 px-4 py-3 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                <>
+                  {/* ── Desktop table (hidden on mobile) ── */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm min-w-[1000px]">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          {["No","Pengirim","Isi Aspirasi","Kategori","Foto","Status","Prioritas","Catatan",""].map((h) => (
+                            <th key={h} className="text-left text-[11px] font-semibold text-gray-400 px-4 py-3 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {rows.map((d, idx) => (
+                          <tr key={d.id} className="hover:bg-gray-50/70 transition-colors">
+
+                            <td className="px-4 py-3 text-xs text-gray-400 w-10 tabular-nums">{idx + 1}</td>
+
+                            <td className="px-4 py-3 w-40">
+                              <p className="text-sm text-gray-800 font-medium truncate max-w-[130px]">
+                                {d.nama || <span className="text-gray-400 italic font-normal text-xs">Anonim</span>}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">{d.fakultas}</p>
+                            </td>
+
+                            <td className="px-4 py-3 max-w-[200px]">
+                              <p className="text-sm text-gray-600 truncate">{d.isi}</p>
+                              <p className="text-[11px] text-gray-400 mt-0.5">{fmtDateTime(d.created_at)}</p>
+                            </td>
+
+                            <td className="px-4 py-3 w-36">
+                              <span className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-1 whitespace-nowrap">
+                                {d.nama_kategori}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3 w-14">
+                              {d.foto ? (
+                                <button onClick={() => setLightbox(UPLOADS + d.foto)}
+                                  className="block w-10 h-10 rounded-lg overflow-hidden border border-gray-100 hover:border-green-300 transition-colors">
+                                  <img src={UPLOADS + d.foto} alt="foto" className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-200">—</span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3" style={{ minWidth: "130px" }}>
+                              <select value={d.status}
+                                disabled={updatingId === `status-${d.id}`}
+                                onChange={(e) => handleUpdateStatus(d.id, e.target.value)}
+                                className={`text-xs rounded-lg px-2.5 py-1.5 border outline-none cursor-pointer disabled:opacity-50 font-medium w-full ${STATUS_BADGE[d.status]}`}>
+                                {STATUS_LIST.map((s) => <option key={s} value={s}>{cap(s)}</option>)}
+                              </select>
+                            </td>
+
+                            <td className="px-4 py-3 w-28">
+                              <button
+                                disabled={updatingId === `prioritas-${d.id}`}
+                                onClick={() => handleUpdatePrioritas(d.id, d.prioritas === "urgent" ? "normal" : "urgent")}
+                                className={`text-xs rounded-lg px-2.5 py-1.5 border font-medium transition-colors disabled:opacity-50 w-full ${
+                                  d.prioritas === "urgent"
+                                    ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                                    : "bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100"
+                                }`}>
+                                {d.prioritas === "urgent" ? "Urgent" : "Normal"}
+                              </button>
+                            </td>
+
+                            <td className="px-4 py-3 w-36">
+                              {d.catatan_internal
+                                ? <p className="text-xs text-gray-500 truncate max-w-[120px]" title={d.catatan_internal}>{d.catatan_internal}</p>
+                                : <span className="text-xs text-gray-200">—</span>}
+                            </td>
+
+                            <td className="px-4 py-3 w-16">
+                              <button onClick={() => openModal(d)}
+                                className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                                <EyeIcon /> Detail
+                              </button>
+                            </td>
+
+                          </tr>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {rows.map((d, idx) => (
-                        <tr key={d.id} className="hover:bg-gray-50/70 transition-colors">
+                      </tbody>
+                    </table>
+                  </div>
 
-                          <td className="px-4 py-3 text-xs text-gray-400 w-10 tabular-nums">{idx + 1}</td>
-
-                          <td className="px-4 py-3 w-40">
-                            <p className="text-sm text-gray-800 font-medium truncate max-w-[130px]">
-                              {d.nama || <span className="text-gray-400 italic font-normal text-xs">Anonim</span>}
+                  {/* ── Mobile card list (hidden on desktop) ── */}
+                  <div className="sm:hidden divide-y divide-gray-50">
+                    {rows.map((d, idx) => (
+                      <div key={d.id} className="px-4 py-4 space-y-2.5">
+                        {/* Header row */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">
+                              {d.nama || <span className="italic text-gray-400 font-normal text-xs">Anonim</span>}
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">{d.fakultas}</p>
-                          </td>
-
-                          <td className="px-4 py-3 max-w-[200px]">
-                            <p className="text-sm text-gray-600 truncate">{d.isi}</p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">{fmtDateTime(d.created_at)}</p>
-                          </td>
-
-                          <td className="px-4 py-3 w-36">
-                            <span className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-1 whitespace-nowrap">
-                              {d.nama_kategori}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className={`text-[11px] rounded-md px-2 py-0.5 border font-medium ${STATUS_BADGE[d.status]}`}>
+                              {cap(d.status)}
                             </span>
-                          </td>
+                            {d.prioritas === "urgent" && (
+                              <span className="text-[11px] rounded-md px-2 py-0.5 border font-medium bg-red-50 text-red-600 border-red-200">
+                                Urgent
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                          <td className="px-4 py-3 w-14">
+                        {/* Isi */}
+                        <p className="text-sm text-gray-600 line-clamp-2">{d.isi}</p>
+
+                        {/* Meta row */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5">
+                            {d.nama_kategori}
+                          </span>
+                          <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                            <ClockIcon /> {fmtDateTime(d.created_at)}
+                          </span>
+                        </div>
+
+                        {/* Footer row: foto + detail button */}
+                        <div className="flex items-center justify-between">
+                          <div>
                             {d.foto ? (
                               <button onClick={() => setLightbox(UPLOADS + d.foto)}
                                 className="block w-10 h-10 rounded-lg overflow-hidden border border-gray-100 hover:border-green-300 transition-colors">
                                 <img src={UPLOADS + d.foto} alt="foto" className="w-full h-full object-cover"
                                   onError={(e) => { e.target.parentElement.style.display = "none"; }} />
                               </button>
-                            ) : (
-                              <span className="text-xs text-gray-200">—</span>
-                            )}
-                          </td>
-
-                          <td className="px-4 py-3" style={{ minWidth: "130px" }}>
-                            <select value={d.status}
-                              disabled={updatingId === `status-${d.id}`}
-                              onChange={(e) => handleUpdateStatus(d.id, e.target.value)}
-                              className={`text-xs rounded-lg px-2.5 py-1.5 border outline-none cursor-pointer disabled:opacity-50 font-medium w-full ${STATUS_BADGE[d.status]}`}>
-                              {STATUS_LIST.map((s) => <option key={s} value={s}>{cap(s)}</option>)}
-                            </select>
-                          </td>
-
-                          <td className="px-4 py-3 w-28">
-                            <button
-                              disabled={updatingId === `prioritas-${d.id}`}
-                              onClick={() => handleUpdatePrioritas(d.id, d.prioritas === "urgent" ? "normal" : "urgent")}
-                              className={`text-xs rounded-lg px-2.5 py-1.5 border font-medium transition-colors disabled:opacity-50 w-full ${
-                                d.prioritas === "urgent"
-                                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
-                                  : "bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100"
-                              }`}>
-                              {d.prioritas === "urgent" ? "Urgent" : "Normal"}
-                            </button>
-                          </td>
-
-                          <td className="px-4 py-3 w-36">
-                            {d.catatan_internal
-                              ? <p className="text-xs text-gray-500 truncate max-w-[120px]" title={d.catatan_internal}>{d.catatan_internal}</p>
-                              : <span className="text-xs text-gray-200">—</span>}
-                          </td>
-
-                          <td className="px-4 py-3 w-16">
-                            <button onClick={() => openModal(d)}
-                              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                              <EyeIcon /> Detail
-                            </button>
-                          </td>
-
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            ) : null}
+                          </div>
+                          <button onClick={() => openModal(d)}
+                            className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1">
+                            <EyeIcon /> Detail
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
