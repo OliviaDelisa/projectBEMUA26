@@ -30,18 +30,11 @@ exports.getAllAspirasi = async (req, res) => {
 
 exports.createAspirasi = async (req, res) => {
   try {
-    const { nama, fakultas, nama_kategori, isi } = req.body;
+    const { nama, fakultas, kategori_id, isi } = req.body;
 
-    const [kategori] = await db.query(
-      `SELECT id FROM kategori_aspirasi WHERE nama_kategori = ?`,
-      [nama_kategori]
-    );
-
-    if (!kategori.length) {
-      return res.status(400).json({ message: "Kategori tidak valid" });
+    if (!fakultas || !kategori_id || !isi || isi.trim().length < 10) {
+      return res.status(400).json({ message: "Data tidak lengkap" });
     }
-
-    const kategori_id = kategori[0].id;
 
     let foto = null;
     if (req.file) {
@@ -63,7 +56,6 @@ exports.createAspirasi = async (req, res) => {
     res.status(500).json({ message: "Gagal mengirim aspirasi" });
   }
 };
-
 
 exports.updateStatus = async (req, res) => {
   try {
