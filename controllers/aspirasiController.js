@@ -44,8 +44,9 @@ exports.createAspirasi = async (req, res) => {
       return res.status(400).json({ message: "Kategori tidak dikenali" });
     }
 
-    let foto = null;
-    if (req.file) foto = req.file.filename;
+    // req.files sekarang array (karena upload.array), bukan req.file lagi
+    const fotoFilenames = req.files ? req.files.map((f) => f.filename) : [];
+    const foto = fotoFilenames.length > 0 ? JSON.stringify(fotoFilenames) : null;
 
     const [result] = await db.query(
       `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto)
@@ -59,6 +60,7 @@ exports.createAspirasi = async (req, res) => {
     res.status(500).json({ message: "Gagal mengirim aspirasi" });
   }
 };
+
 
 exports.updateStatus = async (req, res) => {
   try {

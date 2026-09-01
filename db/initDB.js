@@ -223,7 +223,7 @@ const createAspirasiTable = `
 
     isi TEXT NOT NULL,
 
-    foto VARCHAR(255) DEFAULT NULL,
+    foto TEXT DEFAULT NULL, 
 
     status ENUM(
       'baru',

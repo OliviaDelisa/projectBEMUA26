@@ -4,7 +4,6 @@ const multer  = require("multer");
 const path    = require("path");
 const fs      = require("fs");
 
-// Pastikan folder uploads/ selalu ada, apapun cwd-nya
 const uploadDir = path.join(__dirname, "..", "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -30,7 +29,7 @@ const {
 } = require("../controllers/aspirasiController");
 
 router.get(  "/",              getAllAspirasi);
-router.post( "/", upload.single("foto"), createAspirasi);
+router.post( "/", upload.array("foto", 5), createAspirasi); // maks 5 foto per aspirasi
 router.put(  "/:id/status",    updateStatus);
 router.put(  "/:id/prioritas", updatePrioritas);
 router.put(  "/:id/catatan",   updateCatatan);

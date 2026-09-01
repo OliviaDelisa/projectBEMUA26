@@ -37,6 +37,20 @@ const todayStr = toInputDate(new Date());
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
 
+// Parsing aman untuk kolom foto:
+// - data baru  = JSON string array, contoh: ["a.png","b.png"]
+// - data lama  = string nama file tunggal, contoh: "a.png" (sebelum fitur multi-foto)
+// - kosong/null = tidak ada foto
+const parseFotos = (foto) => {
+  if (!foto) return [];
+  try {
+    const parsed = JSON.parse(foto);
+    return Array.isArray(parsed) ? parsed : [foto];
+  } catch {
+    return [foto];
+  }
+};
+
 const buildBarOptions = (katUnik) => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -115,7 +129,10 @@ export default function Aspirasi() {
   const [catatan,    setCatatan]    = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [noteOk,     setNoteOk]     = useState(false);
-  const [lightbox,   setLightbox]   = useState(null);
+
+  // lightbox sekarang menyimpan { images: [...namafile], index: number } atau null
+  const [lightbox, setLightbox] = useState(null);
+  const openLightbox = (fotos, index = 0) => setLightbox({ images: fotos, index });
 
   const katRef      = useRef(null);
   const statusRef   = useRef(null);
@@ -318,7 +335,6 @@ export default function Aspirasi() {
             </div>
 
             {/* ── Stat cards ─────────────────────────────────────────────── */}
-            {/* Mobile: 2x2 grid | Desktop: 4 columns */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {stats.map((s) => (
                 <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
@@ -334,7 +350,6 @@ export default function Aspirasi() {
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
-            {/* Mobile: stacked | Desktop: 3+2 columns */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
               <div className="lg:col-span-3 bg-white rounded-xl border border-gray-100 p-5">
                 <p className="text-sm font-semibold text-gray-800">Aspirasi per Kategori</p>
@@ -369,7 +384,6 @@ export default function Aspirasi() {
 
               {/* Filters */}
               <div className="px-4 py-3.5 border-b border-gray-100 sm:px-5">
-                {/* Search full width */}
                 <div className="relative mb-2">
                   <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
                   <input
@@ -380,7 +394,6 @@ export default function Aspirasi() {
                     className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-3 py-2 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition"
                   />
                 </div>
-                {/* Filter selects: wrap on mobile */}
                 <div className="flex flex-wrap gap-2 items-center">
                   {[
                     { value: filterStatus,    onChange: setFilterStatus,    ph: "Status",    opts: STATUS_LIST.map((s) => ({ v: s, l: cap(s) })) },
@@ -425,137 +438,153 @@ export default function Aspirasi() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {rows.map((d, idx) => (
-                          <tr key={d.id} className="hover:bg-gray-50/70 transition-colors">
+                        {rows.map((d, idx) => {
+                          const fotos = parseFotos(d.foto);
+                          return (
+                            <tr key={d.id} className="hover:bg-gray-50/70 transition-colors">
 
-                            <td className="px-4 py-3 text-xs text-gray-400 w-10 tabular-nums">{idx + 1}</td>
+                              <td className="px-4 py-3 text-xs text-gray-400 w-10 tabular-nums">{idx + 1}</td>
 
-                            <td className="px-4 py-3 w-40">
-                              <p className="text-sm text-gray-800 font-medium truncate max-w-[130px]">
-                                {d.nama || <span className="text-gray-400 italic font-normal text-xs">Anonim</span>}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-0.5">{d.fakultas}</p>
-                            </td>
+                              <td className="px-4 py-3 w-40">
+                                <p className="text-sm text-gray-800 font-medium truncate max-w-[130px]">
+                                  {d.nama || <span className="text-gray-400 italic font-normal text-xs">Anonim</span>}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-0.5">{d.fakultas}</p>
+                              </td>
 
-                            <td className="px-4 py-3 max-w-[200px]">
-                              <p className="text-sm text-gray-600 truncate">{d.isi}</p>
-                              <p className="text-[11px] text-gray-400 mt-0.5">{fmtDateTime(d.created_at)}</p>
-                            </td>
+                              <td className="px-4 py-3 max-w-[200px]">
+                                <p className="text-sm text-gray-600 truncate">{d.isi}</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">{fmtDateTime(d.created_at)}</p>
+                              </td>
 
-                            <td className="px-4 py-3 w-36">
-                              <span className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-1 whitespace-nowrap">
-                                {d.nama_kategori}
-                              </span>
-                            </td>
+                              <td className="px-4 py-3 w-36">
+                                <span className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-1 whitespace-nowrap">
+                                  {d.nama_kategori}
+                                </span>
+                              </td>
 
-                            <td className="px-4 py-3 w-14">
-                              {d.foto ? (
-                                <button onClick={() => setLightbox(UPLOADS + d.foto)}
-                                  className="block w-10 h-10 rounded-lg overflow-hidden border border-gray-100 hover:border-green-300 transition-colors">
-                                  <img src={UPLOADS + d.foto} alt="foto" className="w-full h-full object-cover"
-                                    onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                              <td className="px-4 py-3 w-14">
+                                {fotos.length > 0 ? (
+                                  <button onClick={() => openLightbox(fotos, 0)}
+                                    className="relative block w-10 h-10 rounded-lg overflow-hidden border border-gray-100 hover:border-green-300 transition-colors">
+                                    <img src={UPLOADS + fotos[0]} alt="foto" className="w-full h-full object-cover"
+                                      onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                                    {fotos.length > 1 && (
+                                      <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[9px] px-1 rounded-tl-md leading-tight">
+                                        +{fotos.length - 1}
+                                      </span>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-200">—</span>
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3" style={{ minWidth: "130px" }}>
+                                <select value={d.status}
+                                  disabled={updatingId === `status-${d.id}`}
+                                  onChange={(e) => handleUpdateStatus(d.id, e.target.value)}
+                                  className={`text-xs rounded-lg px-2.5 py-1.5 border outline-none cursor-pointer disabled:opacity-50 font-medium w-full ${STATUS_BADGE[d.status]}`}>
+                                  {STATUS_LIST.map((s) => <option key={s} value={s}>{cap(s)}</option>)}
+                                </select>
+                              </td>
+
+                              <td className="px-4 py-3 w-28">
+                                <button
+                                  disabled={updatingId === `prioritas-${d.id}`}
+                                  onClick={() => handleUpdatePrioritas(d.id, d.prioritas === "urgent" ? "normal" : "urgent")}
+                                  className={`text-xs rounded-lg px-2.5 py-1.5 border font-medium transition-colors disabled:opacity-50 w-full ${
+                                    d.prioritas === "urgent"
+                                      ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                                      : "bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100"
+                                  }`}>
+                                  {d.prioritas === "urgent" ? "Urgent" : "Normal"}
                                 </button>
-                              ) : (
-                                <span className="text-xs text-gray-200">—</span>
-                              )}
-                            </td>
+                              </td>
 
-                            <td className="px-4 py-3" style={{ minWidth: "130px" }}>
-                              <select value={d.status}
-                                disabled={updatingId === `status-${d.id}`}
-                                onChange={(e) => handleUpdateStatus(d.id, e.target.value)}
-                                className={`text-xs rounded-lg px-2.5 py-1.5 border outline-none cursor-pointer disabled:opacity-50 font-medium w-full ${STATUS_BADGE[d.status]}`}>
-                                {STATUS_LIST.map((s) => <option key={s} value={s}>{cap(s)}</option>)}
-                              </select>
-                            </td>
+                              <td className="px-4 py-3 w-36">
+                                {d.catatan_internal
+                                  ? <p className="text-xs text-gray-500 truncate max-w-[120px]" title={d.catatan_internal}>{d.catatan_internal}</p>
+                                  : <span className="text-xs text-gray-200">—</span>}
+                              </td>
 
-                            <td className="px-4 py-3 w-28">
-                              <button
-                                disabled={updatingId === `prioritas-${d.id}`}
-                                onClick={() => handleUpdatePrioritas(d.id, d.prioritas === "urgent" ? "normal" : "urgent")}
-                                className={`text-xs rounded-lg px-2.5 py-1.5 border font-medium transition-colors disabled:opacity-50 w-full ${
-                                  d.prioritas === "urgent"
-                                    ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
-                                    : "bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100"
-                                }`}>
-                                {d.prioritas === "urgent" ? "Urgent" : "Normal"}
-                              </button>
-                            </td>
+                              <td className="px-4 py-3 w-16">
+                                <button onClick={() => openModal(d)}
+                                  className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                                  <EyeIcon /> Detail
+                                </button>
+                              </td>
 
-                            <td className="px-4 py-3 w-36">
-                              {d.catatan_internal
-                                ? <p className="text-xs text-gray-500 truncate max-w-[120px]" title={d.catatan_internal}>{d.catatan_internal}</p>
-                                : <span className="text-xs text-gray-200">—</span>}
-                            </td>
-
-                            <td className="px-4 py-3 w-16">
-                              <button onClick={() => openModal(d)}
-                                className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                                <EyeIcon /> Detail
-                              </button>
-                            </td>
-
-                          </tr>
-                        ))}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
 
                   {/* ── Mobile card list (hidden on desktop) ── */}
                   <div className="sm:hidden divide-y divide-gray-50">
-                    {rows.map((d, idx) => (
-                      <div key={d.id} className="px-4 py-4 space-y-2.5">
-                        {/* Header row */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">
-                              {d.nama || <span className="italic text-gray-400 font-normal text-xs">Anonim</span>}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">{d.fakultas}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className={`text-[11px] rounded-md px-2 py-0.5 border font-medium ${STATUS_BADGE[d.status]}`}>
-                              {cap(d.status)}
-                            </span>
-                            {d.prioritas === "urgent" && (
-                              <span className="text-[11px] rounded-md px-2 py-0.5 border font-medium bg-red-50 text-red-600 border-red-200">
-                                Urgent
+                    {rows.map((d) => {
+                      const fotos = parseFotos(d.foto);
+                      return (
+                        <div key={d.id} className="px-4 py-4 space-y-2.5">
+                          {/* Header row */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">
+                                {d.nama || <span className="italic text-gray-400 font-normal text-xs">Anonim</span>}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">{d.fakultas}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={`text-[11px] rounded-md px-2 py-0.5 border font-medium ${STATUS_BADGE[d.status]}`}>
+                                {cap(d.status)}
                               </span>
-                            )}
+                              {d.prioritas === "urgent" && (
+                                <span className="text-[11px] rounded-md px-2 py-0.5 border font-medium bg-red-50 text-red-600 border-red-200">
+                                  Urgent
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Isi */}
+                          <p className="text-sm text-gray-600 line-clamp-2">{d.isi}</p>
+
+                          {/* Meta row */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5">
+                              {d.nama_kategori}
+                            </span>
+                            <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                              <ClockIcon /> {fmtDateTime(d.created_at)}
+                            </span>
+                          </div>
+
+                          {/* Footer row: foto + detail button */}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              {fotos.length > 0 ? (
+                                <button onClick={() => openLightbox(fotos, 0)}
+                                  className="relative block w-10 h-10 rounded-lg overflow-hidden border border-gray-100 hover:border-green-300 transition-colors">
+                                  <img src={UPLOADS + fotos[0]} alt="foto" className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                                  {fotos.length > 1 && (
+                                    <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[9px] px-1 rounded-tl-md leading-tight">
+                                      +{fotos.length - 1}
+                                    </span>
+                                  )}
+                                </button>
+                              ) : null}
+                            </div>
+                            <button onClick={() => openModal(d)}
+                              className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1">
+                              <EyeIcon /> Detail
+                            </button>
                           </div>
                         </div>
-
-                        {/* Isi */}
-                        <p className="text-sm text-gray-600 line-clamp-2">{d.isi}</p>
-
-                        {/* Meta row */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5">
-                            {d.nama_kategori}
-                          </span>
-                          <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                            <ClockIcon /> {fmtDateTime(d.created_at)}
-                          </span>
-                        </div>
-
-                        {/* Footer row: foto + detail button */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            {d.foto ? (
-                              <button onClick={() => setLightbox(UPLOADS + d.foto)}
-                                className="block w-10 h-10 rounded-lg overflow-hidden border border-gray-100 hover:border-green-300 transition-colors">
-                                <img src={UPLOADS + d.foto} alt="foto" className="w-full h-full object-cover"
-                                  onError={(e) => { e.target.parentElement.style.display = "none"; }} />
-                              </button>
-                            ) : null}
-                          </div>
-                          <button onClick={() => openModal(d)}
-                            className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-500 flex items-center gap-1">
-                            <EyeIcon /> Detail
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}
@@ -565,10 +594,42 @@ export default function Aspirasi() {
         </div>
       </div>
 
-      {/* Lightbox */}
+      {/* Lightbox dengan navigasi (mendukung banyak foto) */}
       {lightbox && (
         <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-8" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="Foto aspirasi" className="max-w-full max-h-full rounded-2xl shadow-2xl" />
+          <img
+            src={UPLOADS + lightbox.images[lightbox.index]}
+            alt="Foto aspirasi"
+            className="max-w-full max-h-full rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {lightbox.images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((l) => ({ ...l, index: (l.index - 1 + l.images.length) % l.images.length }));
+                }}
+                className="absolute left-5 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition"
+              >
+                <ChevronLeftIcon />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((l) => ({ ...l, index: (l.index + 1) % l.images.length }));
+                }}
+                className="absolute right-16 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition"
+              >
+                <ChevronRightIcon />
+              </button>
+              <span className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white text-xs bg-black/40 rounded-full px-3 py-1">
+                {lightbox.index + 1} / {lightbox.images.length}
+              </span>
+            </>
+          )}
+
           <button onClick={() => setLightbox(null)}
             className="absolute top-5 right-5 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition">
             <CloseIcon />
@@ -632,14 +693,20 @@ export default function Aspirasi() {
                 <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-4">{selected.isi}</p>
               </div>
 
-              {selected.foto && (
+              {parseFotos(selected.foto).length > 0 && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Foto Lampiran</label>
-                  <button onClick={() => setLightbox(UPLOADS + selected.foto)}
-                    className="block w-full focus:outline-none rounded-xl overflow-hidden border border-gray-100 hover:border-green-200 transition-colors">
-                    <img src={UPLOADS + selected.foto} alt="Lampiran" className="w-full object-cover max-h-56"
-                      onError={(e) => { e.target.closest("button").style.display = "none"; }} />
-                  </button>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Foto Lampiran ({parseFotos(selected.foto).length})
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {parseFotos(selected.foto).map((f, i) => (
+                      <button key={i} onClick={() => openLightbox(parseFotos(selected.foto), i)}
+                        className="block focus:outline-none rounded-xl overflow-hidden border border-gray-100 hover:border-green-200 transition-colors aspect-square">
+                        <img src={UPLOADS + f} alt={`Lampiran ${i + 1}`} className="w-full h-full object-cover"
+                          onError={(e) => { e.target.closest("button").style.display = "none"; }} />
+                      </button>
+                    ))}
+                  </div>
                   <p className="text-[11px] text-gray-300 mt-1.5">Klik gambar untuk perbesar</p>
                 </div>
               )}
@@ -701,6 +768,20 @@ function ClockIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  );
+}
+function ChevronLeftIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  );
+}
+function ChevronRightIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
     </svg>
   );
 }
