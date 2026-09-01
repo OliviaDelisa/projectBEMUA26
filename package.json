@@ -21,6 +21,7 @@
     "express": "^5.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.8.0",
+    "multer": "^2.3.0",
     "mysql2": "^3.22.0",
     "node-cron": "^4.2.1",
     "qrcode.react": "^4.2.0",
