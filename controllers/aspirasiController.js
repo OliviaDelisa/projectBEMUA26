@@ -3,8 +3,8 @@
 const mysql = require("mysql2/promise");
 
 const db = mysql.createPool({
-  host:     process.env.DB_HOST,
-  user:     process.env.DB_USER,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
 });
@@ -30,7 +30,18 @@ exports.getAllAspirasi = async (req, res) => {
 
 exports.createAspirasi = async (req, res) => {
   try {
-    const { nama, fakultas, kategori_id, isi } = req.body;
+    const { nama, fakultas, nama_kategori, isi } = req.body;
+
+    const [kategori] = await db.query(
+      `SELECT id FROM kategori_aspirasi WHERE nama_kategori = ?`,
+      [nama_kategori]
+    );
+
+    if (!kategori.length) {
+      return res.status(400).json({ message: "Kategori tidak valid" });
+    }
+
+    const kategori_id = kategori[0].id;
 
     let foto = null;
     if (req.file) {
@@ -52,6 +63,7 @@ exports.createAspirasi = async (req, res) => {
     res.status(500).json({ message: "Gagal mengirim aspirasi" });
   }
 };
+
 
 exports.updateStatus = async (req, res) => {
   try {
