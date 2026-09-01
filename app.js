@@ -48,6 +48,9 @@ app.get("/api", (req, res) => {
   });
 });
 
+// ─── SERVE UPLOADED FILES ───────────────
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // ─── SERVE REACT BUILD ──────────────────
 app.use(express.static(path.join(__dirname, "frontend/dist")));
 app.get("/{*path}", (req, res) => {
