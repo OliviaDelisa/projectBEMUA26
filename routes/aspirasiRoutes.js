@@ -22,6 +22,7 @@ const upload = multer({ storage });
 
 const {
   getAllAspirasi,
+  getAllKategori,
   createAspirasi,
   updateStatus,
   updatePrioritas,
@@ -29,6 +30,7 @@ const {
 } = require("../controllers/aspirasiController");
 
 router.get(  "/",              getAllAspirasi);
+router.get(  "/kategori",      getAllKategori);
 router.post( "/", upload.array("foto", 5), createAspirasi); // maks 5 foto per aspirasi
 router.put(  "/:id/status",    updateStatus);
 router.put(  "/:id/prioritas", updatePrioritas);

@@ -594,9 +594,12 @@ export default function Aspirasi() {
         </div>
       </div>
 
-      {/* Lightbox dengan navigasi (mendukung banyak foto) */}
+      {/* Lightbox dengan navigasi (mendukung banyak foto) — z-index dinaikkan di atas modal detail */}
       {lightbox && (
-        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-8" onClick={() => setLightbox(null)}>
+        <div
+          className="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center p-4 sm:p-8"
+          onClick={() => setLightbox(null)}
+        >
           <img
             src={UPLOADS + lightbox.images[lightbox.index]}
             alt="Foto aspirasi"
@@ -611,7 +614,7 @@ export default function Aspirasi() {
                   e.stopPropagation();
                   setLightbox((l) => ({ ...l, index: (l.index - 1 + l.images.length) % l.images.length }));
                 }}
-                className="absolute left-5 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition"
+                className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 active:bg-black/80 text-white rounded-full w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center transition"
               >
                 <ChevronLeftIcon />
               </button>
@@ -620,18 +623,18 @@ export default function Aspirasi() {
                   e.stopPropagation();
                   setLightbox((l) => ({ ...l, index: (l.index + 1) % l.images.length }));
                 }}
-                className="absolute right-16 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition"
+                className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 active:bg-black/80 text-white rounded-full w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center transition"
               >
                 <ChevronRightIcon />
               </button>
-              <span className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white text-xs bg-black/40 rounded-full px-3 py-1">
+              <span className="absolute bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 text-white text-xs bg-black/50 rounded-full px-3 py-1">
                 {lightbox.index + 1} / {lightbox.images.length}
               </span>
             </>
           )}
 
           <button onClick={() => setLightbox(null)}
-            className="absolute top-5 right-5 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition">
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-black/50 hover:bg-black/70 active:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center transition">
             <CloseIcon />
           </button>
         </div>

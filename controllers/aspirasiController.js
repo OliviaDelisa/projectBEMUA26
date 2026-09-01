@@ -122,3 +122,15 @@ exports.updateCatatan = async (req, res) => {
     res.status(500).json({ message: "Gagal menyimpan catatan" });
   }
 };
+
+exports.getAllKategori = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT DISTINCT id, nama_kategori FROM kategori_aspirasi ORDER BY id ASC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Gagal mengambil data kategori" });
+  }
+};
