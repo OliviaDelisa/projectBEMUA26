@@ -30,27 +30,30 @@ exports.getAllAspirasi = async (req, res) => {
 
 exports.createAspirasi = async (req, res) => {
   try {
-    const { nama, fakultas, kategori_id, isi } = req.body;
+    const { nama, fakultas, nama_kategori, isi } = req.body;
 
-    if (!fakultas || !kategori_id || !isi || isi.trim().length < 10) {
+    if (!fakultas || !nama_kategori || !isi || isi.trim().length < 10) {
       return res.status(400).json({ message: "Data tidak lengkap" });
     }
 
-    let foto = null;
-    if (req.file) {
-      foto = req.file.filename;
+    const [[kategori]] = await db.query(
+      `SELECT id FROM kategori_aspirasi WHERE nama_kategori = ?`,
+      [nama_kategori]
+    );
+    if (!kategori) {
+      return res.status(400).json({ message: "Kategori tidak dikenali" });
     }
+
+    let foto = null;
+    if (req.file) foto = req.file.filename;
 
     const [result] = await db.query(
       `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto)
        VALUES (?, ?, ?, ?, ?)`,
-      [nama || null, fakultas, kategori_id, isi, foto]
+      [nama || null, fakultas, kategori.id, isi, foto]
     );
 
-    res.status(201).json({
-      message: "Aspirasi berhasil dikirim",
-      id: result.insertId,
-    });
+    res.status(201).json({ message: "Aspirasi berhasil dikirim", id: result.insertId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Gagal mengirim aspirasi" });
