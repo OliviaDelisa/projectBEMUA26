@@ -126,7 +126,10 @@ exports.updateCatatan = async (req, res) => {
 exports.getAllKategori = async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT DISTINCT id, nama_kategori FROM kategori_aspirasi ORDER BY id ASC`
+      `SELECT MIN(id) AS id, nama_kategori 
+       FROM kategori_aspirasi 
+       GROUP BY nama_kategori 
+       ORDER BY MIN(id) ASC`
     );
     res.json(rows);
   } catch (err) {
