@@ -204,10 +204,10 @@ connection.connect(async (err) => {
     )
   `;
 
-  const createKategoriAspirasiTable = `
+const createKategoriAspirasiTable = `
   CREATE TABLE IF NOT EXISTS kategori_aspirasi (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nama_kategori VARCHAR(100) NOT NULL,
+    nama_kategori VARCHAR(100) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
 `;
