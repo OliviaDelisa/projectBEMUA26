@@ -8,4 +8,5 @@ export const MANAJEMEN_PATHS = [
   "/role",
   "/aspirasi",
   "/aspirasi/kategori",
+  "/konten",
 ];

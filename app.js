@@ -17,6 +17,7 @@ const periodRoutes          = require("./routes/periodRoutes");
 const piketRoutes           = require("./routes/piketRoutes");
 const notificationRoutes    = require("./routes/notification");
 const aspirasiRoutes = require("./routes/aspirasiRoutes");
+const contentRoutes = require("./routes/contentRoutes");
 
 
 const app = express();
@@ -39,6 +40,7 @@ app.use("/api/notification",     notificationRoutes);
 app.use("/api/roles",            require("./routes/roles"));
 app.use("/api/permissions",      require("./routes/permission"));
 app.use("/api/aspirasi", aspirasiRoutes);
+app.use("/api/content", contentRoutes);
 
 // ─── TEST ───────────────────────────────
 app.get("/api", (req, res) => {

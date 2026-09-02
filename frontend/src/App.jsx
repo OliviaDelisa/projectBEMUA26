@@ -19,6 +19,7 @@ import Akun from "./pages/admin/Akun";
 import Periode from "./pages/admin/Periode";
 import Role from "./pages/admin/Role";
 import Aspirasi from "./pages/admin/Aspirasi";
+import Konten from "./pages/admin/Konten";
 import Profile from "./pages/Profile";
 import Notifikasi from "./pages/Notifikasi";
 
@@ -67,6 +68,7 @@ function AppRoutes() {
       <Route path="/akun"      element={<ProtectedRoute><Akun /></ProtectedRoute>} />
       <Route path="/periode"   element={<ProtectedRoute><Periode /></ProtectedRoute>} />
       <Route path="/role"      element={<ProtectedRoute><Role /></ProtectedRoute>} />
+      <Route path="/konten"    element={<ProtectedRoute><Konten /></ProtectedRoute>} />
 
       {/* ── 4. ROUTE ASPIRASI (placeholder) ── */}
       <Route

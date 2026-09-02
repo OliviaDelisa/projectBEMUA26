@@ -44,6 +44,7 @@ export default function Home() {
   const user   = stored ? JSON.parse(stored) : null;
 
   const [homeData, setHomeData]   = useState(null);
+  const [publicContent, setPublicContent] = useState([]);
   const [history, setHistory]     = useState([]);
   const [loading, setLoading]     = useState(true);
   const [toast, setToast]         = useState(null);
@@ -122,6 +123,10 @@ export default function Home() {
     fetchData();
     ambilLokasiTopbar();
     fetchUnreadCount();
+    fetch(`${API}/content?public=true`)
+      .then((response) => response.json())
+      .then((data) => setPublicContent(Array.isArray(data) ? data : []))
+      .catch(() => setPublicContent([]));
   }, []);
 
   const ambilLokasiTopbar = () => {
@@ -757,6 +762,27 @@ export default function Home() {
               </button>
             </div>
           )}
+            {publicContent.length > 0 && (
+              <section className="bg-white rounded-2xl shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-gray-800">Informasi Terbaru</h2>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-[#00923D]">BEM KM UNAND</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {publicContent.slice(0, 4).map((content) => (
+                    <article key={content.id} className="flex gap-3 border border-gray-100 rounded-xl p-3">
+                      {content.cover_image ? <img src={`${API.replace("/api", "")}${content.cover_image}`} alt="" className="w-20 h-20 rounded-lg object-cover shrink-0" /> : <div className="w-20 h-20 rounded-lg bg-green-50 shrink-0 flex items-center justify-center text-xs font-bold text-[#00923D]">{content.content_type === "event" ? "EV" : content.content_type === "gallery" ? "GL" : "AN"}</div>}
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase font-bold tracking-wide text-[#00923D]">{content.content_type === "event" ? "Event" : content.content_type === "gallery" ? "Galeri" : "Pengumuman"}</p>
+                        <h3 className="text-sm font-semibold text-gray-800 mt-0.5 line-clamp-2">{content.title}</h3>
+                        {content.event_start && <p className="text-xs text-gray-400 mt-1">{formatDatetime(content.event_start)}</p>}
+                        {content.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{content.description}</p>}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
             {/* ── Notif Piket ── */}
             {homeData?.has_duty && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3">

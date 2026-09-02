@@ -248,6 +248,22 @@ const createAspirasiTable = `
   )
 `;
 
+      const createContentsTable = `
+        CREATE TABLE IF NOT EXISTS contents (
+          id            INT AUTO_INCREMENT PRIMARY KEY,
+          content_type  ENUM('event','announcement','gallery') NOT NULL,
+          title         VARCHAR(200) NOT NULL,
+          description   TEXT DEFAULT NULL,
+          event_start   DATETIME DEFAULT NULL,
+          event_end     DATETIME DEFAULT NULL,
+          cover_image   VARCHAR(255) DEFAULT NULL,
+          images        JSON DEFAULT NULL,
+          is_published  BOOLEAN DEFAULT FALSE,
+          created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `;
+
       // ─────────────────────────────────────────────────────────────────────
       // RUN ALL CREATE TABLE QUERIES
       // ─────────────────────────────────────────────────────────────────────
@@ -268,6 +284,7 @@ const createAspirasiTable = `
 
         { sql: createKategoriAspirasiTable, name: "kategori_aspirasi"     },
         { sql: createAspirasiTable,         name: "aspirasi"              },
+        { sql: createContentsTable,         name: "contents"              },
       ];
 
       const runQueries = (index) => {
@@ -424,6 +441,10 @@ console.log("  ✓ Default kategori aspirasi seeded");
             { name: "aspirasi.manage",            label: "Kelola Aspirasi",                        path: null,                  group_name: "aspirasi"      },
             { name: "kategori.view",              label: "Lihat Kategori Aspirasi",                path: "/aspirasi/kategori",  group_name: "aspirasi"      },
             { name: "kategori.manage",            label: "Kelola Kategori Aspirasi",               path: null,                  group_name: "aspirasi"      },
+
+            // ── Manajemen Konten ────────────────────────────────────────────
+            { name: "content.view",               label: "Lihat Manajemen Konten",                 path: "/konten",              group_name: "content"       },
+            { name: "content.manage",             label: "Kelola Event, Pengumuman & Galeri",      path: null,                   group_name: "content"       },
           ];
 
           for (const perm of defaultPermissions) {
@@ -459,6 +480,7 @@ console.log("  ✓ Default kategori aspirasi seeded");
               "notifications.send",
               "aspirasi.view", "aspirasi.manage",
               "kategori.view", "kategori.manage",
+              "content.view", "content.manage",
             ],
 
             // User: HANYA dua halaman ini, tidak lebih.

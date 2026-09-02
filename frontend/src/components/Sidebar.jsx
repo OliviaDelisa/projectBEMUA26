@@ -38,6 +38,12 @@ const menus = [
       { label: "Aspirasi Masuk", path: "/aspirasi"          },
     ],
   },
+  {
+    label: "Manajemen Konten",
+    children: [
+      { label: "Event, Pengumuman & Galeri", path: "/konten" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
