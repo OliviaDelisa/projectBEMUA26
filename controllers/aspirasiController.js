@@ -9,6 +9,17 @@ const db = mysql.createPool({
   database: process.env.DB_NAME,
 });
 
+function nowJakartaSql() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (type) => parts.find((p) => p.type === type).value;
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
 exports.getAllAspirasi = async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -48,10 +59,12 @@ exports.createAspirasi = async (req, res) => {
     const fotoFilenames = req.files ? req.files.map((f) => f.filename) : [];
     const foto = fotoFilenames.length > 0 ? JSON.stringify(fotoFilenames) : null;
 
+    const created_at = nowJakartaSql();
+
     const [result] = await db.query(
-      `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto)
-       VALUES (?, ?, ?, ?, ?)`,
-      [nama || null, fakultas, kategori.id, isi, foto]
+      `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [nama || null, fakultas, kategori.id, isi, foto, created_at]
     );
 
     res.status(201).json({ message: "Aspirasi berhasil dikirim", id: result.insertId });
