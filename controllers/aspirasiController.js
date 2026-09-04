@@ -60,6 +60,7 @@ exports.createAspirasi = async (req, res) => {
     const foto = fotoFilenames.length > 0 ? JSON.stringify(fotoFilenames) : null;
 
     const created_at = nowJakartaSql();
+    console.log("=== DEBUG ASPIRASI ===", { serverTimeUTC: new Date().toISOString(), computedJakarta: created_at });
 
     const [result] = await db.query(
       `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto, created_at)
