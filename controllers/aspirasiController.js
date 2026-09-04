@@ -59,13 +59,12 @@ exports.createAspirasi = async (req, res) => {
     const fotoFilenames = req.files ? req.files.map((f) => f.filename) : [];
     const foto = fotoFilenames.length > 0 ? JSON.stringify(fotoFilenames) : null;
 
-    const created_at = nowJakartaSql();
-    console.log("=== DEBUG ASPIRASI ===", { serverTimeUTC: new Date().toISOString(), computedJakarta: created_at });
+    const now = nowJakartaSql();
 
     const [result] = await db.query(
-      `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [nama || null, fakultas, kategori.id, isi, foto, created_at]
+      `INSERT INTO aspirasi (nama, fakultas, kategori_id, isi, foto, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [nama || null, fakultas, kategori.id, isi, foto, now, now]
     );
 
     res.status(201).json({ message: "Aspirasi berhasil dikirim", id: result.insertId });
@@ -87,8 +86,8 @@ exports.updateStatus = async (req, res) => {
     }
 
     await db.query(
-      `UPDATE aspirasi SET status = ? WHERE id = ?`,
-      [status, id]
+      `UPDATE aspirasi SET status = ?, updated_at = ? WHERE id = ?`,
+      [status, nowJakartaSql(), id]
     );
 
     res.json({ message: "Status berhasil diperbarui" });
@@ -109,8 +108,8 @@ exports.updatePrioritas = async (req, res) => {
     }
 
     await db.query(
-      `UPDATE aspirasi SET prioritas = ? WHERE id = ?`,
-      [prioritas, id]
+      `UPDATE aspirasi SET prioritas = ?, updated_at = ? WHERE id = ?`,
+      [prioritas, nowJakartaSql(), id]
     );
 
     res.json({ message: "Prioritas berhasil diperbarui" });
@@ -126,8 +125,8 @@ exports.updateCatatan = async (req, res) => {
     const { catatan_internal } = req.body;
 
     await db.query(
-      `UPDATE aspirasi SET catatan_internal = ? WHERE id = ?`,
-      [catatan_internal ?? null, id]
+      `UPDATE aspirasi SET catatan_internal = ?, updated_at = ? WHERE id = ?`,
+      [catatan_internal ?? null, nowJakartaSql(), id]
     );
 
     res.json({ message: "Catatan berhasil disimpan" });
