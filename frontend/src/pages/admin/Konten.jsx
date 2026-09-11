@@ -6,10 +6,9 @@ import API from "../../config/api";
 
 const TYPES = {
   event: { label: "Event", icon: CalendarDays },
-  announcement: { label: "Pengumuman", icon: Megaphone },
+  announcement: { label: "Informasi", icon: Megaphone },
   gallery: { label: "Galeri", icon: ImagePlus },
 };
-
 const emptyForm = { title: "", description: "", event_start: "", event_end: "", is_published: false, images: [] };
 const formatDate = (value) => value ? new Date(value.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "";
 
