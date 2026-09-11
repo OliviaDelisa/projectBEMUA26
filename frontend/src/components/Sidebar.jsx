@@ -41,7 +41,7 @@ const menus = [
   {
     label: "Manajemen Konten",
     children: [
-      { label: "Event, Pengumuman & Galeri", path: "/konten" },
+      { label: "Event, Informasi & Galeri", path: "/konten" },
     ],
   },
 ];
