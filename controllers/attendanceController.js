@@ -35,12 +35,11 @@ function cekWaktuAbsensiSekre(now = new Date()) {
   if (totalMenit < 8 * 60) {
     return { bisa: false, pesan: "Absensi sekre belum dibuka (mulai pukul 08.00 WIB)" };
   }
-  if (totalMenit >= 18 * 60) {
-    return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00 WIB)" };
+  if (totalMenit >= 20 * 60) {
+    return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 20.00 WIB)" };
   }
   return { bisa: true, pesan: null };
 }
-
 // ── getHomeData ──────────────────────────────────────────────────
 // GET /attendance/home/:user_id
 exports.getHomeData = (req, res) => {

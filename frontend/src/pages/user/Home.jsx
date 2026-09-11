@@ -79,14 +79,14 @@ export default function Home() {
 
   // ── Validasi hari & jam absensi sekre ───────────────────────────────────
   const getCekWaktu = () => {
-    const now        = new Date();
-    const hari       = now.getDay();
-    const totalMenit = now.getHours() * 60 + now.getMinutes();
-    if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
-    if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
-    if (totalMenit >= 18 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 18.00)" };
-    return { bisa: true, pesan: null };
-  };
+  const now        = new Date();
+  const hari       = now.getDay();
+  const totalMenit = now.getHours() * 60 + now.getMinutes();
+  if (hari === 0 || hari === 6) return { bisa: false, pesan: "Absensi sekre hanya tersedia Senin–Jumat" };
+  if (totalMenit < 8 * 60)     return { bisa: false, pesan: "Absensi sekre dibuka mulai pukul 08.00" };
+  if (totalMenit >= 20 * 60)   return { bisa: false, pesan: "Absensi sekre sudah ditutup (batas pukul 20.00)" };
+  return { bisa: true, pesan: null };
+};
 
   const waktu = getCekWaktu();
 
@@ -817,7 +817,7 @@ export default function Home() {
 
               <div className="flex flex-col gap-1.5 mb-2">
                 <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                  Tersedia Senin–Jumat, pukul 08.00–18.00
+                  Tersedia Senin–Jumat, pukul 08.00–20.00
                 </div>
               </div>
 
