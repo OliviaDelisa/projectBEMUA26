@@ -42,6 +42,7 @@ const menus = [
     label: "Manajemen Konten",
     children: [
       { label: "Event, Informasi & Galeri", path: "/konten" },
+      { label: "Artikel", path: "/artikel-admin" },
     ],
   },
 ];

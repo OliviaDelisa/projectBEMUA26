@@ -22,6 +22,7 @@ import Aspirasi from "./pages/admin/Aspirasi";
 import Konten from "./pages/admin/Konten";
 import Profile from "./pages/Profile";
 import Notifikasi from "./pages/Notifikasi";
+import Artikel from "./pages/admin/Artikel";
 
 // ── Halaman Anggota
 import Home from "./pages/user/Home";
@@ -69,7 +70,7 @@ function AppRoutes() {
       <Route path="/periode"   element={<ProtectedRoute><Periode /></ProtectedRoute>} />
       <Route path="/role"      element={<ProtectedRoute><Role /></ProtectedRoute>} />
       <Route path="/konten"    element={<ProtectedRoute><Konten /></ProtectedRoute>} />
-
+      <Route path="/artikel-admin" element={<ProtectedRoute><Artikel /></ProtectedRoute>} />
       {/* ── 4. ROUTE ASPIRASI (placeholder) ── */}
       <Route
         path="/aspirasi"
