@@ -212,13 +212,13 @@ export default function Role() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <Topbar
           title="Hak Akses"
           subtitle="Kelola role dan izin akses tiap fitur sistem"
         />
 
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-8">
 
           {/* ── Toast ───────────────────────────────────────────────── */}
           <div style={{
@@ -246,10 +246,10 @@ export default function Role() {
           </div>
 
           {/* ── Tombol tambah role ───────────────────────────────────── */}
-          {canManageRoles && <div className="flex justify-end mb-5">
+          {canManageRoles && <div className="mb-4 flex justify-end sm:mb-5">
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl text-white transition hover:opacity-90 active:scale-95"
+              className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 active:scale-95 sm:w-auto"
               style={{ backgroundColor: UNAND_GREEN }}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -267,7 +267,7 @@ export default function Role() {
 
               {/* Header */}
               <div
-                className="grid bg-gray-50 border-b border-gray-200 px-4 py-3 items-center"
+                className="hidden grid-cols-[minmax(260px,1fr)_repeat(var(--role-count),120px)] items-center border-b border-gray-200 bg-gray-50 px-4 py-3 md:grid"
                 style={{ gridTemplateColumns: gridCols }}
               >
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Fitur</span>
@@ -300,31 +300,56 @@ export default function Role() {
                   </div>
 
                   {items.map(permission => (
-                    <div
-                      key={permission.id}
-                      className="grid items-center px-4 py-3 border-t border-gray-100 hover:bg-gray-50/50 transition"
-                      style={{ gridTemplateColumns: gridCols }}
-                    >
-                      <div>
-                        <p className="text-sm text-gray-800">{permission.label}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{permission.name}</p>
+                    <div key={permission.id} className="border-t border-gray-100">
+                      <div
+                        className="hidden items-center px-4 py-3 transition hover:bg-gray-50/50 md:grid"
+                        style={{ gridTemplateColumns: gridCols }}
+                      >
+                        <div>
+                          <p className="text-sm text-gray-800">{permission.label}</p>
+                          <p className="mt-0.5 text-xs text-gray-400">{permission.name}</p>
+                        </div>
+                        {roles.map(role => {
+                          if (role.name === "superadmin" || !canManageRoles) {
+                            return <ToggleIcon key={role.id} allowed readonly />;
+                          }
+                          const saveId = `${role.id}-${permission.id}`;
+                          return (
+                            <ToggleIcon
+                              key={role.id}
+                              allowed={permissions[role.id]?.[permission.name] ?? false}
+                              saving={savingKey === saveId}
+                              onClick={() => handleToggle(role.id, permission)}
+                            />
+                          );
+                        })}
                       </div>
-
-                      {roles.map(role => {
-                        // Superadmin selalu aktif & readonly
-                        if (role.name === "superadmin" || !canManageRoles) {
-                          return <ToggleIcon key={role.id} allowed readonly />;
-                        }
-                        const saveId = `${role.id}-${permission.id}`;
-                        return (
-                          <ToggleIcon
-                            key={role.id}
-                            allowed={permissions[role.id]?.[permission.name] ?? false}
-                            saving={savingKey === saveId}
-                            onClick={() => handleToggle(role.id, permission)}
-                          />
-                        );
-                      })}
+                      <div className="space-y-3 p-3 md:hidden">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{permission.label}</p>
+                          <p className="mt-0.5 break-all text-[11px] text-gray-400">{permission.name}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {roles.map(role => {
+                            const readonly = role.name === "superadmin" || !canManageRoles;
+                            const saveId = `${role.id}-${permission.id}`;
+                            return (
+                              <div key={role.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-gray-50 px-2.5 py-2">
+                                <span className="min-w-0 break-words text-xs font-semibold text-gray-600">{role.label}</span>
+                                {readonly ? (
+                                  <ToggleIcon allowed readonly />
+                                ) : (
+                                  <ToggleIcon
+                                    allowed={permissions[role.id]?.[permission.name] ?? false}
+                                    saving={savingKey === saveId}
+                                    onClick={() => handleToggle(role.id, permission)}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

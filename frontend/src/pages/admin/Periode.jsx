@@ -144,19 +144,19 @@ function Periode() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <Topbar
           title="Manajemen Periode"
           subtitle="Kelola periode kepengurusan BEM KM UNAND"
         />
 
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-8">
 
           {/* STATS */}
           {!showForm && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-4 md:grid-cols-3">
               <div
-                className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4"
+                className="flex min-w-0 flex-col justify-center rounded-2xl border border-gray-100 border-l-4 bg-white p-3 shadow-sm sm:p-4"
                 style={{ borderLeftColor: UNAND_GREEN }}
               >
                 <span
@@ -170,7 +170,7 @@ function Periode() {
                 </span>
               </div>
 
-              <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4 border-l-green-400">
+              <div className="flex min-w-0 flex-col justify-center rounded-2xl border border-gray-100 border-l-4 border-l-green-400 bg-white p-3 shadow-sm sm:p-4">
                 <span className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">
                   Aktif
                 </span>
@@ -184,7 +184,7 @@ function Periode() {
                 )}
               </div>
 
-              <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center border-l-4 border-l-gray-300">
+              <div className="flex min-w-0 flex-col justify-center rounded-2xl border border-gray-100 border-l-4 border-l-gray-300 bg-white p-3 shadow-sm sm:p-4">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
                   Non-Aktif
                 </span>
@@ -204,9 +204,9 @@ function Periode() {
 
           {/* FORM */}
           {showForm ? (
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 max-w-xl mx-auto">
+            <div className="mx-auto max-w-xl rounded-2xl border border-gray-100 bg-white p-4 shadow-lg sm:p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold" style={{ color: UNAND_GREEN }}>
+                <h2 className="text-lg font-bold sm:text-xl" style={{ color: UNAND_GREEN }}>
                   {editTarget !== null ? "Edit Periode" : "Tambah Periode Baru"}
                 </h2>
                 <button
@@ -267,10 +267,10 @@ function Periode() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex gap-3">
+                <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:gap-3">
                   <button
                     type="submit"
-                    className="flex-1 text-white py-3 rounded-xl font-bold hover:opacity-90 transition shadow-lg"
+                    className="w-full flex-1 rounded-xl py-3 font-bold text-white shadow-lg transition hover:opacity-90 sm:w-auto"
                     style={{ backgroundColor: UNAND_GREEN }}
                   >
                     {editTarget !== null ? "Simpan Perubahan" : "Simpan Periode"}
@@ -278,7 +278,7 @@ function Periode() {
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="px-6 py-3 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 transition"
+                    className="w-full rounded-xl border border-gray-200 py-3 text-gray-500 transition hover:bg-gray-50 sm:w-auto sm:px-6"
                   >
                     Kembali
                   </button>
@@ -289,10 +289,10 @@ function Periode() {
           ) : (
             <>
               {/* Toolbar */}
-              {canManagePeriods && <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex justify-end">
+              {canManagePeriods && <div className="mb-4 flex justify-end rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:mb-6 sm:p-4">
                 <button
                   onClick={handleOpenAdd}
-                  className="text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition shadow-sm flex items-center gap-2 text-sm"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 sm:w-auto"
                   style={{ backgroundColor: UNAND_GREEN }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -307,7 +307,7 @@ function Periode() {
                   Memuat data…
                 </div>
               ) : periods.length === 0 ? (
-                <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-16 text-center text-gray-400 font-medium">
+                <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center font-medium text-gray-400 shadow-md sm:p-16">
                   Belum ada periode. Tambahkan periode pertama.
                 </div>
               ) : (
@@ -318,11 +318,11 @@ function Periode() {
                     return (
                       <div
                         key={p.id}
-                        className={`bg-white rounded-2xl shadow-sm border-2 transition p-6 flex items-center justify-between gap-4
+                        className={`flex flex-col gap-4 rounded-2xl border-2 bg-white p-4 shadow-sm transition sm:flex-row sm:items-center sm:justify-between sm:p-6
                           ${active ? "border-green-300" : "border-gray-100"}`}
                       >
                         {/* Kiri: info periode */}
-                        <div className="flex items-center gap-4">
+                        <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
                           <div
                             className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0
                               ${active ? "bg-green-50" : "bg-gray-50"}`}
@@ -337,9 +337,9 @@ function Periode() {
                                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-gray-800 text-base">
+                          <div className="min-w-0">
+                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                              <h3 className="break-words text-base font-bold text-gray-800">
                                 {p.name}
                               </h3>
                               {active ? (
@@ -352,21 +352,21 @@ function Periode() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-xs leading-relaxed text-gray-500 sm:text-sm">
                               {formatDate(p.start_date)} — {formatDate(p.end_date)}
                             </p>
                           </div>
                         </div>
 
                         {/* Kanan: aksi */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:flex-shrink-0">
 
                           {/* Tombol Jadikan Aktif — hanya muncul di periode non-aktif */}
                           {canManagePeriods && !active && (
                             <button
                               onClick={() => handleSetActive(p.id)}
                               disabled={isProcessing}
-                              className="px-3 py-1.5 rounded-lg border border-green-300 text-green-700 text-xs font-bold hover:bg-green-50 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="min-h-10 flex-1 whitespace-nowrap rounded-lg border border-green-300 px-3 py-1.5 text-xs font-bold text-green-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                             >
                               {isProcessing ? "Memproses…" : "Jadikan Aktif"}
                             </button>
@@ -376,7 +376,7 @@ function Periode() {
                           {canManagePeriods && <button
                             onClick={() => handleOpenEdit(p)}
                             title="Edit"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition"
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 transition hover:border-green-400 hover:bg-green-50"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M13.586 3.586a2 2 0 112.828 2.828l-9.193 9.193a2 2 0 01-.707.464l-3 1a1 1 0 01-1.265-1.265l1-3a2 2 0 01.464-.707l9.193-9.193z" />
@@ -388,7 +388,7 @@ function Periode() {
                             <button
                               onClick={() => handleDelete(p.id, p.name)}
                               title="Hapus"
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-red-400 hover:bg-red-50 transition"
+                              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 transition hover:border-red-400 hover:bg-red-50"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 hover:text-red-500" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
