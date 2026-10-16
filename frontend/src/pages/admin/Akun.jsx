@@ -814,56 +814,9 @@ export default function Akun() {
                 <div className="text-center py-16 text-gray-400 font-medium">Memuat data…</div>
               ) : (
                 <>
-                <div className="md:hidden space-y-3">
-                  {displayData.length > 0 ? displayData.map(m => (
-                    <article key={m.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-gray-800 break-words">{m.name}</h3>
-                          <p className="mt-1 font-mono text-xs text-gray-500">{m.nim}</p>
-                        </div>
-                        <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-black uppercase ${m.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                          {m.is_active ? "Aktif" : "Non-Aktif"}
-                        </span>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-gray-100 pt-3 text-xs">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase text-gray-400">Jabatan</p>
-                          <p className="mt-1 break-words font-medium text-gray-700">{m.jabatan || "-"}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase text-gray-400">Kementerian</p>
-                          <p className="mt-1 break-words font-medium text-gray-700">{m.kementerian || "-"}</p>
-                        </div>
-                        <div className="col-span-2 flex flex-wrap gap-1">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-gray-100 text-gray-500 border border-gray-200">User</span>
-                          {m.role && m.role !== "user" && (
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${extraRolePill[m.role] ?? "bg-orange-100 text-orange-700 border border-orange-200"}`}>
-                              {m.role_label ?? m.role}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex gap-2 border-t border-gray-100 pt-3">
-                        {canEditUser && <button type="button" onClick={() => openEdit(m)}
-                          className="min-h-10 flex-1 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50">
-                          Edit
-                        </button>}
-                        {canResetPassword && <button type="button" onClick={() => openMemberReset(m)}
-                          className="min-h-10 flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-50">
-                          <KeyRound className="h-4 w-4" /> Reset Password
-                        </button>}
-                      </div>
-                    </article>
-                  )) : (
-                    <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
-                      {periodeAktif ? `Belum ada anggota untuk periode ${periodeAktif.name}` : "Pilih periode untuk melihat data anggota"}
-                    </div>
-                  )}
-                </div>
-                <div className="hidden md:block bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-left border-collapse">
+                    <table className="w-full min-w-[720px] text-left border-collapse">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="p-4 border-b text-gray-700 font-bold text-sm">Nama</th>
