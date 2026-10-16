@@ -13,9 +13,11 @@ import ChangePassword from "./pages/ChangePassword";
 // ── Halaman Manajemen
 import Dashboard from "./pages/admin/Dashboard";
 import Absensi from "./pages/admin/Absensi";
+import AbsensiIGM from "./pages/admin/AbsensiIGM";
 import ManajemenKegiatan from "./pages/admin/Kegiatan";
 import Piket from "./pages/admin/Piket";
 import Akun from "./pages/admin/Akun";
+import AkunIGM from "./pages/admin/AkunIGM";
 import Periode from "./pages/admin/Periode";
 import Role from "./pages/admin/Role";
 import Aspirasi from "./pages/admin/Aspirasi";
@@ -64,9 +66,11 @@ function AppRoutes() {
       {/* ── 3. ROUTE MANAJEMEN ── */}
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/absensi"   element={<ProtectedRoute><Absensi /></ProtectedRoute>} />
+      <Route path="/absensi-igm" element={<ProtectedRoute><AbsensiIGM /></ProtectedRoute>} />
       <Route path="/kegiatan"  element={<ProtectedRoute><ManajemenKegiatan /></ProtectedRoute>} />
       <Route path="/piket"     element={<ProtectedRoute><Piket /></ProtectedRoute>} />
       <Route path="/akun"      element={<ProtectedRoute><Akun /></ProtectedRoute>} />
+      <Route path="/akun-igm"  element={<ProtectedRoute><AkunIGM /></ProtectedRoute>} />
       <Route path="/periode"   element={<ProtectedRoute><Periode /></ProtectedRoute>} />
       <Route path="/role"      element={<ProtectedRoute><Role /></ProtectedRoute>} />
       <Route path="/konten"    element={<ProtectedRoute><Konten /></ProtectedRoute>} />

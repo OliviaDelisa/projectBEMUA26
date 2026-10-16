@@ -2,35 +2,23 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 
 const UNAND_GREEN = "#00923D";
 
-const FEATURE_LIST = [
-  {
-    group: "Manajemen Absensi",
-    items: [
-      { key: "dashboard",       label: "Dashboard",            desc: "Ringkasan & statistik absensi" },
-      { key: "absensi_view",    label: "Lihat absensi",        desc: "Riwayat kehadiran semua anggota" },
-      { key: "kegiatan_manage", label: "Kelola kegiatan",      desc: "Buat & atur agenda kegiatan" },
-      { key: "piket_manage",    label: "Piket",                desc: "Jadwal & rekap piket" },
-    ],
-  },
-  {
-    group: "Manajemen Pengguna",
-    items: [
-      { key: "akun_manage",    label: "Kelola akun",    desc: "Tambah, edit, nonaktifkan akun" },
-      { key: "periode_manage", label: "Kelola periode", desc: "Buat & atur periode kepengurusan" },
-      { key: "role_manage",    label: "Kelola role",    desc: "Tambah & atur hak akses role" },
-    ],
-  },
-  {
-    group: "Manajemen Aspirasi",
-    items: [
-      { key: "aspirasi_view",     label: "Lihat aspirasi masuk",     desc: "Baca & tindak lanjuti aspirasi" },
-      { key: "aspirasi_kategori", label: "Kelola kategori aspirasi", desc: "Tambah & edit kategori" },
-    ],
-  },
-];
+const GROUP_LABELS = {
+  activities: "Manajemen Kegiatan",
+  aspirasi: "Manajemen Aspirasi",
+  attendance: "Manajemen Absensi",
+  content: "Manajemen Konten",
+  dashboard: "Dashboard",
+  duty: "Manajemen Piket",
+  notifications: "Notifikasi",
+  periods: "Manajemen Periode",
+  reports: "Laporan",
+  roles: "Manajemen Hak Akses",
+  users: "Manajemen Pengguna",
+};
 
 function ToggleIcon({ allowed, onClick, saving, readonly }) {
   if (readonly) {
@@ -76,8 +64,11 @@ function ToggleIcon({ allowed, onClick, saving, readonly }) {
 }
 
 export default function Role() {
+  const { hasPermission } = usePermissions();
+  const canManageRoles = hasPermission("roles.manage");
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState({});
+  const [permissionCatalog, setPermissionCatalog] = useState([]);
   const [savingKey, setSavingKey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -107,18 +98,20 @@ export default function Role() {
       const filtered = rolesData.filter(r => r.name !== "user");
       setRoles(filtered);
 
-      const permsObj = {};
-      await Promise.all(
-        filtered.map(async (role) => {
-          try {
-            const res = await fetch(`${API}/permissions?role_id=${role.id}`);
-            const data = await res.json();
-            permsObj[role.id] = res.ok ? data : {};
-          } catch {
-            permsObj[role.id] = {};
-          }
-        })
-      );
+      const rolePermissionResults = await Promise.all(filtered.map(async role => {
+        const res = await fetch(`${API}/permissions?role_id=${role.id}`);
+        const data = await res.json();
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error(data.message || `Gagal memuat permission ${role.label}`);
+        }
+        return { roleId: role.id, data };
+      }));
+
+      const permsObj = Object.fromEntries(rolePermissionResults.map(({ roleId, data }) => [
+        roleId,
+        Object.fromEntries(data.map(permission => [permission.name, Boolean(permission.enabled)])),
+      ]));
+      setPermissionCatalog(rolePermissionResults[0]?.data ?? []);
       setPermissions(permsObj);
     } catch (err) {
       setToast({ type: "error", msg: "Gagal memuat data: " + err.message });
@@ -130,17 +123,17 @@ export default function Role() {
   useEffect(() => { fetchData(); }, []);
 
   // ── Toggle permission ──────────────────────────────────────────────
-  const handleToggle = async (roleId, featureKey) => {
-    const current = permissions[roleId]?.[featureKey] ?? false;
+  const handleToggle = async (roleId, permission) => {
+    const current = permissions[roleId]?.[permission.name] ?? false;
     const newValue = !current;
-    const saveId = `${roleId}-${featureKey}`;
+    const saveId = `${roleId}-${permission.id}`;
     setSavingKey(saveId);
 
     try {
       const res = await fetch(`${API}/permissions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role_id: roleId, key: featureKey, value: newValue }),
+        body: JSON.stringify({ role_id: roleId, permission_id: permission.id, value: newValue }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
@@ -148,12 +141,11 @@ export default function Role() {
       // UI baru berubah setelah API sukses
       setPermissions(prev => ({
         ...prev,
-        [roleId]: { ...prev[roleId], [featureKey]: newValue },
+        [roleId]: { ...prev[roleId], [permission.name]: newValue },
       }));
 
-      const featureLabel = FEATURE_LIST.flatMap(g => g.items).find(i => i.key === featureKey)?.label ?? featureKey;
       const roleLabel = roles.find(r => r.id === roleId)?.label ?? "";
-      setToast({ type: "success", msg: `${featureLabel} ${newValue ? "diaktifkan" : "dinonaktifkan"} untuk ${roleLabel}` });
+      setToast({ type: "success", msg: `${permission.label} ${newValue ? "diaktifkan" : "dinonaktifkan"} untuk ${roleLabel}` });
     } catch (e) {
       // Tidak perlu revert karena UI belum diubah
       setToast({ type: "error", msg: e.message });
@@ -209,7 +201,13 @@ export default function Role() {
     }
   };
 
-  const gridCols = `1fr ${roles.map(() => "120px").join(" ")}`;
+  const gridCols = `minmax(260px, 1fr) ${roles.map(() => "120px").join(" ")}`;
+  const groupedPermissions = permissionCatalog.reduce((groups, permission) => {
+    const key = permission.group_name || "other";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(permission);
+    return groups;
+  }, new Map());
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -248,7 +246,7 @@ export default function Role() {
           </div>
 
           {/* ── Tombol tambah role ───────────────────────────────────── */}
-          <div className="flex justify-end mb-5">
+          {canManageRoles && <div className="flex justify-end mb-5">
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl text-white transition hover:opacity-90 active:scale-95"
@@ -259,7 +257,7 @@ export default function Role() {
               </svg>
               Tambah Role
             </button>
-          </div>
+          </div>}
 
           {/* ── Permission matrix ────────────────────────────────────── */}
           {loading ? (
@@ -279,7 +277,7 @@ export default function Role() {
                       {role.label}
                     </span>
                     {/* Tombol hapus hanya untuk role non-system */}
-                    {!role.is_system && (
+                    {canManageRoles && !role.is_system && (
                       <button
                         onClick={() => setDeleteTarget(role)}
                         title="Hapus role ini"
@@ -295,35 +293,35 @@ export default function Role() {
               </div>
 
               {/* Rows */}
-              {FEATURE_LIST.map(({ group, items }) => (
+              {Array.from(groupedPermissions.entries()).map(([group, items]) => (
                 <div key={group}>
                   <div className="bg-gray-50 border-t border-gray-100 px-4 py-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{group}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{GROUP_LABELS[group] || group.replace(/_/g, " ")}</span>
                   </div>
 
-                  {items.map(item => (
+                  {items.map(permission => (
                     <div
-                      key={item.key}
+                      key={permission.id}
                       className="grid items-center px-4 py-3 border-t border-gray-100 hover:bg-gray-50/50 transition"
                       style={{ gridTemplateColumns: gridCols }}
                     >
                       <div>
-                        <p className="text-sm text-gray-800">{item.label}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
+                        <p className="text-sm text-gray-800">{permission.label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{permission.name}</p>
                       </div>
 
                       {roles.map(role => {
                         // Superadmin selalu aktif & readonly
-                        if (role.name === "superadmin") {
+                        if (role.name === "superadmin" || !canManageRoles) {
                           return <ToggleIcon key={role.id} allowed readonly />;
                         }
-                        const saveId = `${role.id}-${item.key}`;
+                        const saveId = `${role.id}-${permission.id}`;
                         return (
                           <ToggleIcon
                             key={role.id}
-                            allowed={permissions[role.id]?.[item.key] ?? false}
+                            allowed={permissions[role.id]?.[permission.name] ?? false}
                             saving={savingKey === saveId}
-                            onClick={() => handleToggle(role.id, item.key)}
+                            onClick={() => handleToggle(role.id, permission)}
                           />
                         );
                       })}

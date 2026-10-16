@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
+import usePermissions from "../../hooks/usePermissions";
 
 // Konfigurasi API lokal dan production.
 const API_URL =
@@ -189,6 +190,8 @@ function AppPopup({
 }
 
 export default function Artikel() {
+  const { hasPermission } = usePermissions();
+  const canManageArticles = hasPermission("article.manage");
   const [articles, setArticles] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("semua");
@@ -268,6 +271,7 @@ export default function Artikel() {
   ).length;
 
   const openCreate = () => {
+    if (!canManageArticles) return;
     setEditingId(null);
     setForm({ ...emptyForm });
     setPreview("");
@@ -277,6 +281,7 @@ export default function Artikel() {
   };
 
   const openEdit = (article) => {
+    if (!canManageArticles) return;
     setEditingId(article.id);
     setForm({
       title: article.title || "",
@@ -323,7 +328,7 @@ export default function Artikel() {
   const save = async (event, targetStatus = form.status) => {
     event?.preventDefault();
 
-    if (saving) return;
+    if (saving || !canManageArticles) return;
 
     setError("");
     setNotice("");
@@ -404,6 +409,7 @@ export default function Artikel() {
 
   // Menghapus artikel menggunakan popup konfirmasi.
   const remove = (article) => {
+    if (!canManageArticles) return;
     setPopup({
       type: "warning",
       title: "Hapus artikel?",
@@ -417,7 +423,7 @@ export default function Artikel() {
   };
 
   const confirmDelete = async (article) => {
-    if (!article || deletingId !== null) return;
+    if (!article || deletingId !== null || !canManageArticles) return;
 
     setDeletingId(article.id);
     setPopupBusy(true);
@@ -510,23 +516,8 @@ export default function Artikel() {
         <Topbar title="Manajemen Artikel" />
 
         <div className="mx-auto max-w-7xl space-y-6 p-5 md:p-8">
-          {/* Header */}
-          <div className="flex flex-col justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center md:p-6">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#00923D]">
-                <span className="h-2 w-2 rounded-full bg-[#00923D]" />
-                BEM KM UNAND
-              </div>
-
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                Manajemen Artikel
-              </h1>
-
-              <p className="mt-1 text-sm text-gray-500">
-                Kelola, simpan sebagai draft, dan terbitkan artikel website BEM.
-              </p>
-            </div>
-
+          {/* Header actions */}
+          {canManageArticles && <div className="flex justify-end">
             <button
               type="button"
               onClick={openCreate}
@@ -535,7 +526,7 @@ export default function Artikel() {
               <Plus size={18} />
               Tambah Artikel
             </button>
-          </div>
+          </div>}
 
           {/* Statistik */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -691,7 +682,7 @@ export default function Artikel() {
                     : "Mulai dengan membuat artikel pertama untuk website BEM."}
                 </p>
 
-                {!search && statusFilter === "semua" && (
+                {canManageArticles && !search && statusFilter === "semua" && (
                   <button
                     type="button"
                     onClick={openCreate}
@@ -763,7 +754,7 @@ export default function Artikel() {
                           ID artikel: {article.id}
                         </span>
 
-                        <div className="flex gap-2">
+                        {canManageArticles && <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => openEdit(article)}
@@ -788,7 +779,7 @@ export default function Artikel() {
                               <Trash2 size={16} />
                             )}
                           </button>
-                        </div>
+                        </div>}
                       </div>
                     </div>
                   </article>
@@ -993,7 +984,7 @@ export default function Artikel() {
                 Batal
               </button>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {canManageArticles && <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   disabled={saving}
@@ -1021,7 +1012,7 @@ export default function Artikel() {
                   )}
                   Terbitkan
                 </button>
-              </div>
+              </div>}
             </div>
           </form>
         </div>

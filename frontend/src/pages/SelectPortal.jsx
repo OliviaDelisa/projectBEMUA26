@@ -9,7 +9,8 @@ export default function SelectPortal() {
   const user = stored ? JSON.parse(stored) : null;
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
 
-  const canAccessManajemen = userPermissions.some((p) => MANAJEMEN_PATHS.includes(p));
+  const canAccessManajemen = user?.role?.toLowerCase() === "superadmin" ||
+    userPermissions.some((p) => MANAJEMEN_PATHS.includes(p));
   const manajemenEntry = MANAJEMEN_PATHS.find((p) => userPermissions.includes(p)) || "/dashboard";
 
   useEffect(() => {

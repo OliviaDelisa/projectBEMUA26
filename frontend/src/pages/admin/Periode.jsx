@@ -2,9 +2,12 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 
 function Periode() {
   const UNAND_GREEN = "#00923D";
+  const { hasPermission } = usePermissions();
+  const canManagePeriods = hasPermission("periods.manage");
 
   const [periods, setPeriods]       = useState([]);
   const [loading, setLoading]       = useState(false);
@@ -286,7 +289,7 @@ function Periode() {
           ) : (
             <>
               {/* Toolbar */}
-              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex justify-end">
+              {canManagePeriods && <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex justify-end">
                 <button
                   onClick={handleOpenAdd}
                   className="text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition shadow-sm flex items-center gap-2 text-sm"
@@ -297,7 +300,7 @@ function Periode() {
                   </svg>
                   Tambah Periode
                 </button>
-              </div>
+              </div>}
 
               {loading ? (
                 <div className="text-center py-16 text-gray-400 font-medium">
@@ -359,7 +362,7 @@ function Periode() {
                         <div className="flex items-center gap-2 flex-shrink-0">
 
                           {/* Tombol Jadikan Aktif — hanya muncul di periode non-aktif */}
-                          {!active && (
+                          {canManagePeriods && !active && (
                             <button
                               onClick={() => handleSetActive(p.id)}
                               disabled={isProcessing}
@@ -370,7 +373,7 @@ function Periode() {
                           )}
 
                           {/* Tombol Edit */}
-                          <button
+                          {canManagePeriods && <button
                             onClick={() => handleOpenEdit(p)}
                             title="Edit"
                             className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition"
@@ -378,10 +381,10 @@ function Periode() {
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M13.586 3.586a2 2 0 112.828 2.828l-9.193 9.193a2 2 0 01-.707.464l-3 1a1 1 0 01-1.265-1.265l1-3a2 2 0 01.464-.707l9.193-9.193z" />
                             </svg>
-                          </button>
+                          </button>}
 
                           {/* Tombol Hapus — hanya untuk periode non-aktif */}
-                          {!active && (
+                          {canManagePeriods && !active && (
                             <button
                               onClick={() => handleDelete(p.id, p.name)}
                               title="Hapus"

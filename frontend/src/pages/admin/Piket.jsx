@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 
 const KEMENTERIAN_LIST = [
   "Kepresidenan", "Komunikasi dan Informasi", "Pengembangan Sumber Daya Mahasiswa",
@@ -148,6 +149,9 @@ const exportToPNG = (currentYear, currentMonthIndex, daysInMonth, piketData) => 
 
 // ── Komponen Utama ───────────────────────────────────────────
 function Piket() {
+  const { hasPermission } = usePermissions();
+  const canManageDuty = hasPermission("duty.manage");
+  const canExportReports = hasPermission("reports.export");
   const today = new Date();
   const [currentMonthIndex, setCurrentMonthIndex] = useState(today.getMonth());
   const [currentYear, setCurrentYear]             = useState(today.getFullYear());
@@ -196,6 +200,7 @@ function Piket() {
   };
 
   const openEditor = () => {
+    if (!canManageDuty) return;
     setDraftData(JSON.parse(JSON.stringify(piketData)));
     setIsEditorOpen(true);
   };
@@ -209,6 +214,7 @@ function Piket() {
 
   // ── handleSave: jika salah satu "-" → DELETE, keduanya terisi → POST ──
   const handleSave = async () => {
+    if (!canManageDuty) return;
     setIsSaving(true); setErrorMsg("");
     try {
       for (const [dateKey, d] of Object.entries(draftData || {})) {
@@ -293,7 +299,7 @@ function Piket() {
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              {canExportReports && <button
                 onClick={() => exportToPNG(currentYear, currentMonthIndex, daysInMonth, piketData)}
                 disabled={isLoading || Object.keys(piketData).length === 0}
                 className="bg-white hover:bg-gray-50 disabled:opacity-40 text-gray-600 border border-gray-200 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-[0.15em] transition-all shadow-sm flex items-center gap-2"
@@ -302,8 +308,8 @@ function Piket() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
                 </svg>
                 Export PNG
-              </button>
-              <button
+              </button>}
+              {canManageDuty && <button
                 onClick={openEditor}
                 disabled={isLoading}
                 className="bg-[#00923D] hover:bg-[#007a33] disabled:opacity-50 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-[0.15em] transition-all shadow-md flex items-center gap-2"
@@ -312,7 +318,7 @@ function Piket() {
                   <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                 </svg>
                 {isLoading ? "Memuat..." : "Edit Piket"}
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -337,7 +343,7 @@ function Piket() {
             </div>
             {/* Baris 2: tombol aksi */}
             <div className="flex gap-2">
-              <button
+              {canExportReports && <button
                 onClick={() => exportToPNG(currentYear, currentMonthIndex, daysInMonth, piketData)}
                 disabled={isLoading || Object.keys(piketData).length === 0}
                 className="flex-1 bg-white hover:bg-gray-50 disabled:opacity-40 text-gray-600 border border-gray-200 py-2.5 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-sm flex items-center justify-center gap-2"
@@ -346,8 +352,8 @@ function Piket() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
                 </svg>
                 Export PNG
-              </button>
-              <button
+              </button>}
+              {canManageDuty && <button
                 onClick={openEditor}
                 disabled={isLoading}
                 className="flex-1 bg-[#00923D] hover:bg-[#007a33] disabled:opacity-50 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-md flex items-center justify-center gap-2"
@@ -356,7 +362,7 @@ function Piket() {
                   <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                 </svg>
                 {isLoading ? "Memuat..." : "Edit Piket"}
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -401,7 +407,7 @@ function Piket() {
                           <div className="inline-block px-2.5 py-1 rounded-lg bg-green-50 text-[11px] font-bold text-[#00923D] border border-green-100 leading-snug max-w-full truncate">
                             {data.kementerian}
                           </div>
-                          <div className="inline-block px-2.5 py-1 rounded-lg bg-orange-50 text-[11px] font-bold text-orange-700 border border-orange-100 leading-snug max-w-full truncate ml-0 block">
+                          <div className="block px-2.5 py-1 rounded-lg bg-orange-50 text-[11px] font-bold text-orange-700 border border-orange-100 leading-snug max-w-full truncate ml-0">
                             {data.menko}
                           </div>
                         </div>
@@ -482,7 +488,7 @@ function Piket() {
       </div>
 
       {/* ── MODAL EDITOR ── */}
-      {isEditorOpen && (
+      {canManageDuty && isEditorOpen && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[100] flex items-end md:items-center justify-center md:p-6">
           <div className="bg-white w-full max-w-4xl h-[92vh] md:h-[90vh] rounded-t-2xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 

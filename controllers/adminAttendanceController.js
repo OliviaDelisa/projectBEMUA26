@@ -78,6 +78,7 @@ exports.getSecretariatRekap = (req, res) => {
           attendance:  {}
         };
       }
+
       if (curr.date) {
         const dateKey = getLocalDateString(new Date(curr.date));
         acc[curr.user_id].attendance[dateKey] = curr.status;
@@ -88,6 +89,79 @@ exports.getSecretariatRekap = (req, res) => {
     res.json(Object.values(rekap));
   });
 };
+
+// GET /admin/attendance/igm-monitor?date=YYYY-MM-DD&period_id=ID&kementerian=all
+exports.getIgmAttendanceMonitor = (req, res) => {
+  const { date, period_id, kementerian } = req.query;
+  if (!date || !period_id) {
+    return res.status(400).json({ message: "Tanggal dan periode wajib dipilih" });
+  }
+
+  let query = `
+    SELECT sa.*, u.name, u.nim, im.kementerian
+    FROM secretariat_attendance sa
+    JOIN igm_members im ON im.user_id = sa.user_id
+      AND im.period_id = sa.period_id
+    JOIN users u ON u.id = sa.user_id
+    WHERE sa.period_id = ? AND DATE(sa.date) = ?
+      AND sa.status != 'tidak_hadir'
+  `;
+  const params = [period_id, date];
+  if (kementerian && kementerian !== "all") {
+    query += " AND im.kementerian = ?";
+    params.push(kementerian);
+  }
+  query += " ORDER BY sa.check_in_time DESC";
+
+  db.query(query, params, (err, result) => {
+    if (err) return res.status(500).json({ message: "Gagal mengambil validasi absensi IGM" });
+    res.json(result);
+  });
+};
+
+// GET /admin/attendance/rekap-igm?period_id=ID&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+exports.getIgmRekap = (req, res) => {
+  const { period_id, startDate, endDate, kementerian } = req.query;
+  if (!period_id || !startDate || !endDate) {
+    return res.status(400).json({ message: "Periode dan rentang tanggal wajib dipilih" });
+  }
+
+  let query = `
+    SELECT u.id AS user_id, u.name, u.nim, im.kementerian,
+           sa.date, sa.status
+    FROM igm_members im
+    JOIN users u ON u.id = im.user_id
+    LEFT JOIN secretariat_attendance sa ON sa.user_id = im.user_id
+      AND sa.period_id = im.period_id
+      AND sa.date BETWEEN ? AND ?
+    WHERE im.period_id = ?
+  `;
+  const params = [startDate, endDate, period_id];
+  if (kementerian && kementerian !== "all") {
+    query += " AND im.kementerian = ?";
+    params.push(kementerian);
+  }
+  query += " ORDER BY im.kementerian ASC, u.name ASC, sa.date ASC";
+
+  db.query(query, params, (err, result) => {
+    if (err) return res.status(500).json({ message: "Gagal mengambil rekap absensi IGM" });
+    const rekap = result.reduce((acc, row) => {
+      if (!acc[row.user_id]) {
+        acc[row.user_id] = {
+          id: row.user_id,
+          name: row.name,
+          nim: row.nim,
+          kementerian: row.kementerian,
+          attendance: {},
+        };
+      }
+      if (row.date) acc[row.user_id].attendance[String(row.date).slice(0, 10)] = row.status;
+      return acc;
+    }, {});
+    res.json(Object.values(rekap));
+  });
+};
+
 // ── validateAttendance ───────────────────────────────────────────
 // PUT /admin/attendance/validate/:id
 exports.validateAttendance = (req, res) => {

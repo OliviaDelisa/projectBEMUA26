@@ -1,22 +1,28 @@
 
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-export default function ProtectedRoute({ children }) {
-  const location = useLocation();
-
-  const stored =
-    localStorage.getItem("user") ||
-    sessionStorage.getItem("user");
-
-  let user = null;
-
+function readUser() {
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
   try {
-    user = stored ? JSON.parse(stored) : null;
+    return stored ? JSON.parse(stored) : null;
   } catch (error) {
     console.error("Gagal membaca data user:", error);
     localStorage.removeItem("user");
     sessionStorage.removeItem("user");
+    return null;
   }
+}
+
+export default function ProtectedRoute({ children }) {
+  const location = useLocation();
+  const [user, setUser] = useState(readUser);
+
+  useEffect(() => {
+    const refreshUser = () => setUser(readUser());
+    window.addEventListener("permissions-updated", refreshUser);
+    return () => window.removeEventListener("permissions-updated", refreshUser);
+  }, []);
 
   // 1. Pengguna wajib login
   if (!user) {
