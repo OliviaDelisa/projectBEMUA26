@@ -113,7 +113,7 @@ export default function Absensi() {
     const end   = new Date(rekapDateEnd);
     let curr = new Date(start);
     let count = 0;
-    while (curr <= end && count < 62) {
+    while (curr <= end   && count < 62) {
       if (curr.getDay() >= 1 && curr.getDay() <= 5) dates.push(new Date(curr));
       curr.setDate(curr.getDate() + 1);
       count++;
