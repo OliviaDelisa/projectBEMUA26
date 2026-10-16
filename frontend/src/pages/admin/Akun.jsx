@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { KeyRound } from "lucide-react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 
 const UNAND_GREEN = "#00923D";
 
@@ -28,6 +30,10 @@ const daftarKementerian = [
 ];
 
 export default function Akun() {
+  const { hasPermission } = usePermissions();
+  const canCreateUser = hasPermission("users.create");
+  const canEditUser = hasPermission("users.edit");
+  const canResetPassword = hasPermission("users.reset_password");
   const [periods, setPeriods]           = useState([]);
   const [periodeAktif, setPeriodeAktif] = useState(null);
   const [members, setMembers]           = useState([]);
@@ -211,8 +217,18 @@ export default function Akun() {
     setMode("form");
   };
 
+  const openMemberReset = (member) => {
+    setResetUserId(member.id);
+    setResetNim(member.nim ?? "");
+    setResetDone(false);
+    setCopied(false);
+    setResetModal(true);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
+    if (editTarget !== null && !canEditUser) return;
+    if (editTarget === null && !canCreateUser) return;
     const payload = {
       name: newName, nim: newNim, username: newUsername,
       jabatan: newJabatan, kementerian: newKementerian,
@@ -245,6 +261,7 @@ export default function Akun() {
 
   // FIX: gunakan resetUserId (bukan editTarget) — nilainya sudah di-capture saat openEdit
   const handleResetPassword = async () => {
+    if (!canResetPassword) return;
     if (!resetUserId) { alert("User ID tidak ditemukan"); return; }
     setResetLoading(true);
     try {
@@ -284,10 +301,10 @@ export default function Akun() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <Topbar title="Manajemen Anggota" subtitle="Kelola data kepengurusan BEM KM UNAND" />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-6">
 
           {/* ══ MODAL RESET PASSWORD ══════════════════════════════════════════ */}
           {resetModal && (
@@ -373,7 +390,7 @@ export default function Akun() {
 
           {/* ══ FORM MODE ════════════════════════════════════════════════════ */}
           {mode === "form" && (
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 max-w-2xl mx-auto">
+            <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-lg border border-gray-100 max-w-2xl mx-auto">
               <div className="flex justify-between items-center mb-2">
                 <h2 className="text-xl font-bold" style={{ color: UNAND_GREEN }}>
                   {editTarget !== null ? "Edit Data Anggota" : "Formulir Anggota Baru"}
@@ -390,7 +407,7 @@ export default function Akun() {
                 </div>
 
                 {/* NIM + Username */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">NIM</label>
                     <input value={newNim} onChange={e => handleNimChange(e.target.value)}
@@ -435,15 +452,15 @@ export default function Akun() {
                            <span className="font-mono font-semibold text-gray-500">bem{resetNim}</span>
                         </p>
                       </div>
-                      {/* FIX: panggil openResetModal, bukan set state langsung */}
-                      <button type="button" onClick={openResetModal}
+                      {/* Reset password tetap mengikuti izin aksinya sendiri. */}
+                      {canResetPassword && <button type="button" onClick={openResetModal}
                         className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border transition"
                         style={{ borderColor: UNAND_GREEN, color: UNAND_GREEN }}>
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         Reset Password
-                      </button>
+                      </button>}
                     </div>
                     {resetDone && (
                       <p className="text-[11px] text-green-600 font-semibold mt-1.5 flex items-center gap-1">
@@ -457,7 +474,7 @@ export default function Akun() {
                 )}
 
                 {/* Jabatan + Periode */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Jabatan</label>
                     <select value={newJabatan} onChange={e => setNewJabatan(e.target.value)}
@@ -546,8 +563,8 @@ export default function Akun() {
 
           {/* ══ TRANSFER MODE ════════════════════════════════════════════════ */}
           {mode === "transfer" && (
-            <div className="flex gap-4" style={{ height: "calc(100vh - 130px)" }}>
-              <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            <div className="flex flex-col md:flex-row gap-4 md:h-[calc(100vh-130px)]">
+              <div className="flex-1 flex flex-col min-w-0 min-h-[360px] md:min-h-0">
                 <div className="flex items-center gap-2 mb-3 flex-shrink-0">
                   <button type="button" onClick={() => setMode("list")} className="text-gray-400 hover:text-gray-700 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -613,7 +630,7 @@ export default function Akun() {
                 </div>
               </div>
 
-              <div className="w-60 flex-shrink-0 flex flex-col gap-3">
+              <div className="w-full md:w-60 flex-shrink-0 flex flex-col gap-3">
                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
                   <p className="text-xs font-black uppercase tracking-widest text-gray-400">Pengaturan</p>
                   <div>
@@ -752,7 +769,7 @@ export default function Akun() {
 
                 {/* Tombol aksi: di desktop langsung di baris yang sama (ml-auto) */}
                 <div className="hidden md:flex items-center gap-2 ml-auto border-l pl-3">
-                  {periodeAktif && periodeTujuan.length > 0 && members.length > 0 && (
+                  {canCreateUser && periodeAktif && periodeTujuan.length > 0 && members.length > 0 && (
                     <button type="button" onClick={enterTransferMode}
                       className="px-3 py-2 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition flex items-center gap-1.5">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -761,20 +778,20 @@ export default function Akun() {
                       Transfer Anggota
                     </button>
                   )}
-                  <button type="button" onClick={openAdd} disabled={!periodeAktif}
+                  {canCreateUser && <button type="button" onClick={openAdd} disabled={!periodeAktif}
                     className="text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition shadow-sm flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ backgroundColor: UNAND_GREEN }}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                     </svg>
                     Tambah Anggota
-                  </button>
+                  </button>}
                 </div>
               </div>
 
               {/* Tombol aksi: di mobile saja (baris terpisah) */}
               <div className="flex md:hidden gap-2 pt-3 border-t border-gray-100 mt-1">
-                {periodeAktif && periodeTujuan.length > 0 && members.length > 0 && (
+                {canCreateUser && periodeAktif && periodeTujuan.length > 0 && members.length > 0 && (
                   <button type="button" onClick={enterTransferMode}
                     className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-1.5">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -783,20 +800,68 @@ export default function Akun() {
                     Transfer Anggota
                   </button>
                 )}
-                <button type="button" onClick={openAdd} disabled={!periodeAktif}
+                {canCreateUser && <button type="button" onClick={openAdd} disabled={!periodeAktif}
                   className="flex-1 text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition shadow-sm flex items-center justify-center gap-2 text-sm disabled:opacity-40"
                   style={{ backgroundColor: UNAND_GREEN }}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
                   Tambah Anggota
-                </button>
+                </button>}
               </div>
             </div>
               {loading ? (
                 <div className="text-center py-16 text-gray-400 font-medium">Memuat data…</div>
               ) : (
-                <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+                <>
+                <div className="md:hidden space-y-3">
+                  {displayData.length > 0 ? displayData.map(m => (
+                    <article key={m.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-gray-800 break-words">{m.name}</h3>
+                          <p className="mt-1 font-mono text-xs text-gray-500">{m.nim}</p>
+                        </div>
+                        <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-black uppercase ${m.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                          {m.is_active ? "Aktif" : "Non-Aktif"}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-gray-100 pt-3 text-xs">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase text-gray-400">Jabatan</p>
+                          <p className="mt-1 break-words font-medium text-gray-700">{m.jabatan || "-"}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase text-gray-400">Kementerian</p>
+                          <p className="mt-1 break-words font-medium text-gray-700">{m.kementerian || "-"}</p>
+                        </div>
+                        <div className="col-span-2 flex flex-wrap gap-1">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-gray-100 text-gray-500 border border-gray-200">User</span>
+                          {m.role && m.role !== "user" && (
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${extraRolePill[m.role] ?? "bg-orange-100 text-orange-700 border border-orange-200"}`}>
+                              {m.role_label ?? m.role}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-2 border-t border-gray-100 pt-3">
+                        {canEditUser && <button type="button" onClick={() => openEdit(m)}
+                          className="min-h-10 flex-1 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                          Edit
+                        </button>}
+                        {canResetPassword && <button type="button" onClick={() => openMemberReset(m)}
+                          className="min-h-10 flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                          <KeyRound className="h-4 w-4" /> Reset Password
+                        </button>}
+                      </div>
+                    </article>
+                  )) : (
+                    <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+                      {periodeAktif ? `Belum ada anggota untuk periode ${periodeAktif.name}` : "Pilih periode untuk melihat data anggota"}
+                    </div>
+                  )}
+                </div>
+                <div className="hidden md:block bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] text-left border-collapse">
                     <thead className="bg-gray-50">
@@ -836,12 +901,16 @@ export default function Akun() {
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                            <button type="button" onClick={() => openEdit(m)} title="Edit"
+                            {canEditUser && <button type="button" onClick={() => openEdit(m)} title="Edit"
                               className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-green-50 transition">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-9.193 9.193a2 2 0 01-.707.464l-3 1a1 1 0 01-1.265-1.265l1-3a2 2 0 01.464-.707l9.193-9.193z" />
                               </svg>
-                            </button>
+                            </button>}
+                            {canResetPassword && <button type="button" onClick={() => openMemberReset(m)} title="Reset password"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:border-amber-400 hover:bg-amber-50 transition">
+                              <KeyRound className="h-4 w-4 text-gray-500" />
+                            </button>}
                           </td>
                         </tr>
                       )) : (
@@ -855,6 +924,7 @@ export default function Akun() {
                   </table>
                   </div>
                 </div>
+                </>
               )}
             </>
           )}

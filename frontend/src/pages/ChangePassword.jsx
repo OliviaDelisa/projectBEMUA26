@@ -94,7 +94,8 @@ export default function ChangePassword() {
 
       setTimeout(() => {
       const permissions = Array.isArray(updatedUser?.permissions) ? updatedUser.permissions : [];
-      const canManajemen = permissions.some((p) => MANAJEMEN_PATHS.includes(p));
+      const canManajemen = updatedUser?.role?.toLowerCase() === "superadmin" ||
+        permissions.some((p) => MANAJEMEN_PATHS.includes(p));
       navigate(canManajemen ? "/select-portal" : "/home", { replace: true });
     }, 1500);
 

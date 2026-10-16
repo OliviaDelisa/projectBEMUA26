@@ -10,6 +10,8 @@ router.get("/monitor", adminAttendanceController.getAdminSecretariatMonitor);
 
 // Rekapitulasi absensi (untuk tampilan grid/kalender)
 router.get("/rekap", adminAttendanceController.getSecretariatRekap);
+router.get("/igm-monitor", adminAttendanceController.getIgmAttendanceMonitor);
+router.get("/rekap-igm", adminAttendanceController.getIgmRekap);
 
 // Aksi validasi (approve/reject)
 router.put("/validate/:id", adminAttendanceController.validateAttendance);

@@ -3,6 +3,7 @@ import { CalendarDays, Edit3, ImagePlus, Megaphone, Plus, Trash2, X } from "luci
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 
 const TYPES = {
   event: { label: "Event", icon: CalendarDays },
@@ -13,6 +14,8 @@ const emptyForm = { title: "", description: "", event_start: "", event_end: "", 
 const formatDate = (value) => value ? new Date(value.replace(" ", "T")).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "";
 
 export default function Konten() {
+  const { hasPermission } = usePermissions();
+  const canManageContent = hasPermission("content.manage");
   const [activeType, setActiveType] = useState("event");
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(emptyForm);
@@ -41,12 +44,14 @@ export default function Konten() {
   }, [notice]);
 
   const openCreate = () => {
+    if (!canManageContent) return;
     setEditingId(null);
     setForm({ ...emptyForm });
     setShowModal(true);
   };
 
   const openEdit = (item) => {
+    if (!canManageContent) return;
     setEditingId(item.id);
     setForm({
       title: item.title,
@@ -61,6 +66,7 @@ export default function Konten() {
 
   const save = async (event) => {
     event.preventDefault();
+    if (!canManageContent) return;
     if (!form.title.trim()) return setNotice({ type: "error", text: "Judul wajib diisi" });
     setSaving(true);
     const body = new FormData();
@@ -85,6 +91,7 @@ export default function Konten() {
   };
 
   const remove = async (id) => {
+    if (!canManageContent) return;
     if (!window.confirm("Hapus konten ini?")) return;
     try {
       const response = await fetch(`${API}/content/${id}`, { method: "DELETE" });
@@ -108,9 +115,9 @@ export default function Konten() {
             </div>
             </div>
           </div>
-          <div className="flex justify-end py-3">
+          {canManageContent && <div className="flex justify-end py-3">
             <button onClick={openCreate} className="flex items-center gap-2 bg-[#00923D] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#007d34]"><Plus size={17} /> Tambah {TYPES[activeType].label}</button>
-          </div>
+          </div>}
           {notice && <div className={`mb-4 px-4 py-3 rounded-xl text-sm ${notice.type === "error" ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>{notice.text}</div>}
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6 min-h-[430px]">
             <div className="flex items-center gap-3 -mx-5 md:-mx-6 px-5 md:px-6 pb-4 border-b border-gray-100 mb-5">
@@ -118,7 +125,44 @@ export default function Konten() {
               <h2 className="text-base font-semibold text-gray-800">Semua {TYPES[activeType].label}</h2>
               <span className="text-sm text-gray-400">({items.length})</span>
             </div>
-            {loading ? <div className="py-16 text-center text-gray-400 text-sm">Memuat konten...</div> : items.length === 0 ? <div className="py-16 text-center border border-dashed border-gray-200 rounded-xl"><TypeIcon className="mx-auto text-gray-300" size={36} /><p className="mt-3 text-sm font-semibold text-gray-500">Belum ada {TYPES[activeType].label.toLowerCase()}</p></div> : <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">{items.map((item) => <article key={item.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm"><div className="h-44 bg-gray-100">{item.cover_image ? <img src={`${API.replace("/api", "")}${item.cover_image}`} alt={item.title} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center text-gray-300"><TypeIcon size={42} /></div>}</div><div className="p-4"><div className="flex justify-between items-start gap-3"><h2 className="font-bold text-gray-800 line-clamp-2">{item.title}</h2><span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full ${item.is_published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{item.is_published ? "TERBIT" : "DRAFT"}</span></div>{item.event_start && <p className="text-xs text-[#00923D] mt-2">{formatDate(item.event_start)}{item.event_end ? ` - ${formatDate(item.event_end)}` : ""}</p>}<p className="text-sm text-gray-500 mt-2 line-clamp-3">{item.description || "Tidak ada deskripsi."}</p><div className="flex justify-end gap-2 mt-4"><button onClick={() => openEdit(item)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Edit"><Edit3 size={16} /></button><button onClick={() => remove(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Hapus"><Trash2 size={16} /></button></div></div></article>)}</div>}
+            {loading ? (
+              <div className="py-16 text-center text-gray-400 text-sm">Memuat konten...</div>
+            ) : items.length === 0 ? (
+              <div className="py-16 text-center border border-dashed border-gray-200 rounded-xl">
+                <TypeIcon className="mx-auto text-gray-300" size={36} />
+                <p className="mt-3 text-sm font-semibold text-gray-500">Belum ada {TYPES[activeType].label.toLowerCase()}</p>
+              </div>
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {items.map(item => (
+                  <article key={item.id} className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+                    <div className="h-44 bg-gray-100">
+                      {item.cover_image ? (
+                        <img src={`${API.replace("/api", "")}${item.cover_image}`} alt={item.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-gray-300"><TypeIcon size={42} /></div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <h2 className="line-clamp-2 font-bold text-gray-800">{item.title}</h2>
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${item.is_published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {item.is_published ? "TERBIT" : "DRAFT"}
+                        </span>
+                      </div>
+                      {item.event_start && <p className="mt-2 text-xs text-[#00923D]">{formatDate(item.event_start)}{item.event_end ? ` - ${formatDate(item.event_end)}` : ""}</p>}
+                      <p className="mt-2 line-clamp-3 text-sm text-gray-500">{item.description || "Tidak ada deskripsi."}</p>
+                      {canManageContent && (
+                        <div className="mt-4 flex justify-end gap-2">
+                          <button onClick={() => openEdit(item)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Edit"><Edit3 size={16} /></button>
+                          <button onClick={() => remove(item.id)} className="rounded-lg p-2 text-red-500 hover:bg-red-50" title="Hapus"><Trash2 size={16} /></button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       </main>

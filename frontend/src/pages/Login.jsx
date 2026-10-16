@@ -47,7 +47,8 @@ export default function Login() {
       }
 
       const permissions = Array.isArray(data.user?.permissions) ? data.user.permissions : [];
-      const canManajemen = permissions.some((p) => MANAJEMEN_PATHS.includes(p));
+      const canManajemen = data.user?.role?.toLowerCase() === "superadmin" ||
+        permissions.some((p) => MANAJEMEN_PATHS.includes(p));
 
       setLoading(false);
       window.location.href = canManajemen ? "/select-portal" : "/home";
@@ -149,7 +150,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-0.5">
+            <div className="flex items-center pt-0.5">
               <label className="flex items-center gap-2 cursor-pointer select-none group">
                 <div className="relative w-4 h-4">
                   <input type="checkbox" name="remember" checked={form.remember}
@@ -163,9 +164,6 @@ export default function Login() {
                 </div>
                 <span className="text-sm text-gray-500 group-hover:text-gray-700 transition">Remember Me</span>
               </label>
-              <a href="/forgot-password" className="text-sm text-[#00923D] hover:opacity-70 transition font-medium">
-                Lupa Password?
-              </a>
             </div>
 
             <button type="submit" disabled={loading}

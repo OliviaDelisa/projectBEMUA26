@@ -26,19 +26,34 @@ exports.loginUser = (req, res) => {
     SELECT u.*, 
            r.name AS role, 
            r.label AS role_label,
-           up.jabatan, up.kementerian, up.period_id,
-           up.is_active,
+           up.jabatan, COALESCE(up.kementerian, im.kementerian) AS kementerian,
+           im.kementerian AS igm_kementerian,
+           COALESCE(up.period_id, im.period_id) AS period_id,
+           COALESCE(up.is_active, im.is_active) AS is_active,
+           (im.user_id IS NOT NULL) AS is_igm,
+           EXISTS (SELECT 1 FROM igm_members old_im WHERE old_im.user_id = u.id) AS has_igm_membership,
            p.name AS period_name,
            (
              SELECT GROUP_CONCAT(prm.path)
              FROM role_permissions rp
              JOIN permissions prm ON prm.id = rp.permission_id
              WHERE rp.role_id = r.id
-           ) AS permissions
+           ) AS permissions,
+           (
+             SELECT GROUP_CONCAT(prm.name)
+             FROM role_permissions rp
+             JOIN permissions prm ON prm.id = rp.permission_id
+             WHERE rp.role_id = r.id
+           ) AS permission_names
     FROM users u
     LEFT JOIN user_periods up ON up.user_id = u.id AND up.is_active = TRUE
+    LEFT JOIN igm_members im ON im.user_id = u.id
+      AND im.period_id = (SELECT id FROM periods WHERE is_active = TRUE LIMIT 1)
     LEFT JOIN roles r ON r.id = up.role_id
-    LEFT JOIN periods p ON p.id = up.period_id
+      OR (up.role_id IS NULL AND im.user_id IS NOT NULL AND r.name = 'user')
+      OR (up.role_id IS NULL AND im.user_id IS NULL
+          AND u.username = 'superadmin' AND r.name = 'superadmin')
+    LEFT JOIN periods p ON p.id = COALESCE(up.period_id, im.period_id)
     WHERE u.username = ?
     ORDER BY up.is_active DESC
     LIMIT 1
@@ -52,6 +67,10 @@ exports.loginUser = (req, res) => {
     }
 
     const user = result[0];
+
+    if (user.has_igm_membership && !user.is_igm && !user.period_id) {
+      return res.status(403).json({ message: "Keanggotaan IGM Anda tidak aktif pada periode saat ini." });
+    }
 
     // Cek password
     const isMatch = await bcrypt.compare(password, user.password);
@@ -69,6 +88,9 @@ exports.loginUser = (req, res) => {
     safeUser.must_change_password = user.must_change_password === 1 || user.must_change_password === true;
     safeUser.permissions = user.permissions
       ? user.permissions.split(",").filter((p) => p && p !== "null" && p.trim() !== "")
+      : [];
+    safeUser.permission_names = user.permission_names
+      ? user.permission_names.split(",").filter((p) => p && p !== "null" && p.trim() !== "")
       : [];
 
     res.json({ message: "Login berhasil", user: safeUser });
@@ -256,12 +278,12 @@ exports.deleteUser = (req, res) => {
 exports.getUserPermissions = (req, res) => {
   const { id } = req.params;
   const sql = `
-    SELECT GROUP_CONCAT(DISTINCT p.path) AS permissions
+        SELECT GROUP_CONCAT(DISTINCT p.path) AS permissions,
+          GROUP_CONCAT(DISTINCT p.name) AS permission_names
     FROM user_periods up
     JOIN role_permissions rp ON rp.role_id = up.role_id
     JOIN permissions p ON p.id = rp.permission_id
     WHERE up.user_id = ? AND up.is_active = TRUE
-    AND p.path IS NOT NULL
   `;
   db.query(sql, [id], (err, result) => {
     if (err) return res.status(500).json({ message: "Gagal ambil permissions" });
@@ -269,6 +291,10 @@ exports.getUserPermissions = (req, res) => {
     const permissions = raw
       ? raw.split(",").filter((p) => p && p !== "null" && p.trim() !== "")
       : [];
-    res.json({ permissions });
+    const permissionNamesRaw = result[0]?.permission_names || "";
+    const permission_names = permissionNamesRaw
+      ? permissionNamesRaw.split(",").filter((p) => p && p !== "null" && p.trim() !== "")
+      : [];
+    res.json({ permissions, permission_names });
   });
 };

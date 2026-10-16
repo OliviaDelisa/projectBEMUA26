@@ -20,6 +20,7 @@ const menus = [
     children: [
       { label: "Dashboard",         path: "/dashboard" },
       { label: "Manajemen Absensi", path: "/absensi"   },
+      { label: "Absensi IGM",       path: "/absensi-igm" },
       { label: "Absensi Kegiatan",  path: "/kegiatan"  },
       { label: "Piket",             path: "/piket"     },
     ],
@@ -28,6 +29,7 @@ const menus = [
     label: "Manajemen Pengguna",
     children: [
       { label: "Akun",      path: "/akun"             },
+      { label: "Akun Anggota IGM", path: "/akun-igm" },
       { label: "Periode",   path: "/periode"           },
       { label: "Hak Akses", path: "/role"              },
     ],
@@ -52,7 +54,14 @@ export default function Sidebar() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  const userData        = getUserData();
+  const [userData, setUserData] = useState(getUserData);
+
+  useEffect(() => {
+    const refreshUser = () => setUserData(getUserData());
+    window.addEventListener("permissions-updated", refreshUser);
+    return () => window.removeEventListener("permissions-updated", refreshUser);
+  }, []);
+
   const userRole        = userData?.role?.toLowerCase() || "";
   const userPermissions = Array.isArray(userData?.permissions) ? userData.permissions : [];
 

@@ -9,18 +9,21 @@ export default function useRefreshPermissions() {
     const user = JSON.parse(stored);
     if (!user?.id) return;
 
-    // Hanya refresh kalau permissions kosong
-    if (Array.isArray(user.permissions) && user.permissions.length > 0) return;
-
     fetch(`${API}/users/${user.id}/permissions`)
-      .then((r) => r.json())
-      .then(({ permissions }) => {
-        const updated = { ...user, permissions };
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Gagal memuat hak akses");
+        const updated = {
+          ...user,
+          permissions: Array.isArray(data.permissions) ? data.permissions : [],
+          permission_names: Array.isArray(data.permission_names) ? data.permission_names : [],
+        };
         if (localStorage.getItem("user")) {
           localStorage.setItem("user", JSON.stringify(updated));
         } else {
           sessionStorage.setItem("user", JSON.stringify(updated));
         }
+        window.dispatchEvent(new Event("permissions-updated"));
       })
       .catch(() => {});
   }, []);

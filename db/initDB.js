@@ -30,6 +30,7 @@ connection.connect(async (err) => {
           id                   INT AUTO_INCREMENT PRIMARY KEY,
           name                 VARCHAR(100) NOT NULL,
           nim                  VARCHAR(10)  UNIQUE NOT NULL,
+          fakultas             VARCHAR(100) DEFAULT NULL,
           username             VARCHAR(50)  UNIQUE NOT NULL,
           password             VARCHAR(255) NOT NULL,
           photo                VARCHAR(255) DEFAULT 'default.png',
@@ -98,6 +99,21 @@ connection.connect(async (err) => {
           FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
           FOREIGN KEY (period_id) REFERENCES periods(id) ON DELETE CASCADE,
           FOREIGN KEY (role_id)   REFERENCES roles(id)   ON DELETE RESTRICT
+        )
+      `;
+
+      const createIgmMembersTable = `
+        CREATE TABLE IF NOT EXISTS igm_members (
+          id          INT AUTO_INCREMENT PRIMARY KEY,
+          user_id     INT          NOT NULL,
+          period_id   INT          NOT NULL,
+          kementerian VARCHAR(100) NOT NULL,
+          is_active   BOOLEAN      DEFAULT TRUE,
+          created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+          updated_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_igm_user_period (user_id, period_id),
+          FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+          FOREIGN KEY (period_id) REFERENCES periods(id) ON DELETE CASCADE
         )
       `;
 
@@ -299,6 +315,7 @@ const createAspirasiTable = `
         { sql: createPermissionsTable,     name: "permissions"            },
         { sql: createRolePermissionsTable, name: "role_permissions"       },
         { sql: createUserPeriodsTable,     name: "user_periods"           },
+        { sql: createIgmMembersTable,      name: "igm_members"            },
         { sql: createSecAttTable,          name: "secretariat_attendance" },
         { sql: createActivitiesTable,      name: "activities"             },
         { sql: createActAttTable,          name: "activity_attendance"    },
@@ -313,12 +330,59 @@ const createAspirasiTable = `
       ];
 
       const runQueries = (index) => {
-        if (index >= queries.length) { seedDefaultData(); return; }
+        if (index >= queries.length) { migrateUserAcademicFields(); return; }
         const { sql, name } = queries[index];
         connection.query(sql, (err) => {
           if (err) throw err;
           console.log(`  ✓ Table '${name}' ready`);
           runQueries(index + 1);
+        });
+      };
+
+      const migrateUserAcademicFields = () => {
+        connection.query("SHOW COLUMNS FROM users", (err, columns) => {
+          if (err) throw err;
+          const existingColumns = new Set(columns.map(column => column.Field));
+          const missingColumns = [
+            ["fakultas", "ALTER TABLE users ADD COLUMN fakultas VARCHAR(100) DEFAULT NULL"],
+          ].filter(([column]) => !existingColumns.has(column));
+
+          const addNextColumn = (index) => {
+            if (index >= missingColumns.length) { migrateIgmMembershipIndex(); return; }
+            connection.query(missingColumns[index][1], (alterErr) => {
+              if (alterErr) throw alterErr;
+              addNextColumn(index + 1);
+            });
+          };
+          addNextColumn(0);
+        });
+      };
+
+      const migrateIgmMembershipIndex = () => {
+        connection.query("SHOW INDEX FROM igm_members", (err, indexes) => {
+          if (err) throw err;
+          const hasPeriodUnique = indexes.some(index => index.Key_name === "uq_igm_user_period");
+          const hasLegacyUnique = indexes.some(index =>
+            index.Key_name === "user_id" && Number(index.Non_unique) === 0
+          );
+
+          const dropLegacyIndex = () => {
+            if (!hasLegacyUnique) { seedDefaultData(); return; }
+            connection.query("ALTER TABLE igm_members DROP INDEX user_id", (dropErr) => {
+              if (dropErr) throw dropErr;
+              console.log("  ✓ IGM membership now supports multiple periods");
+              seedDefaultData();
+            });
+          };
+
+          if (hasPeriodUnique) { dropLegacyIndex(); return; }
+          connection.query(
+            "ALTER TABLE igm_members ADD UNIQUE KEY uq_igm_user_period (user_id, period_id)",
+            (addErr) => {
+              if (addErr) throw addErr;
+              dropLegacyIndex();
+            }
+          );
         });
       };
 
@@ -424,6 +488,7 @@ console.log("  ✓ Default kategori aspirasi seeded");
             { name: "users.edit",                 label: "Edit Data Anggota",                      path: null,                  group_name: "users"         },
             { name: "users.delete",               label: "Hapus Anggota",                          path: null,                  group_name: "users"         },
             { name: "users.reset_password",       label: "Reset Password Anggota",                 path: null,                  group_name: "users"         },
+            { name: "igm_members.view",            label: "Kelola Akun Anggota IGM",                path: "/akun-igm",           group_name: "users"         },
 
             // ── Role & Permission (superadmin only) ───────────────────────────
             { name: "roles.view",                 label: "Lihat Role & Permission",                path: "/role",               group_name: "roles"         },
@@ -441,6 +506,7 @@ console.log("  ✓ Default kategori aspirasi seeded");
             { name: "attendance.view_own",        label: "Absen Harian (Home)",                    path: "/home",               group_name: "attendance"    },
             { name: "attendance.history",         label: "Riwayat Absensi Sendiri",                path: "/riwayat-absensi",    group_name: "attendance"    },
             { name: "attendance.view_all",        label: "Lihat Semua Absensi Anggota",            path: "/absensi",            group_name: "attendance"    },
+            { name: "attendance.igm.view",        label: "Kelola Absensi IGM",                     path: "/absensi-igm",        group_name: "attendance"    },
             { name: "attendance.manage",          label: "Kelola Status Absensi",                  path: null,                  group_name: "attendance"    },
 
             // ── Kegiatan ──────────────────────────────────────────────────────
@@ -496,10 +562,11 @@ console.log("  ✓ Default kategori aspirasi seeded");
             admin: [
               "dashboard.view",
               "users.view", "users.create", "users.edit", "users.delete", "users.reset_password",
+              "igm_members.view",
               "roles.view",
               "periods.view",
               "attendance.view_own", "attendance.history",
-              "attendance.view_all", "attendance.manage",
+              "attendance.view_all", "attendance.igm.view", "attendance.manage",
               "activities.view", "activities.view_attendance",
               "activities.create", "activities.edit", "activities.delete",
               "duty.view", "duty.manage",
@@ -518,23 +585,29 @@ console.log("  ✓ Default kategori aspirasi seeded");
             ],
           };
 
-          for (const [roleName, permNames] of Object.entries(rolePermissions)) {
-            const roleId = roleMap[roleName];
-            if (!roleId) continue;
-            for (const permName of permNames) {
-              const permId = permMap[permName];
-              if (!permId) {
-                console.warn(`  ⚠  Permission tidak ditemukan: ${permName}`);
-                continue;
+          const existingPermissionAssignments = await query(
+            `SELECT COUNT(*) AS total FROM role_permissions`
+          );
+          if (Number(existingPermissionAssignments[0].total) === 0) {
+            for (const [roleName, permNames] of Object.entries(rolePermissions)) {
+              const roleId = roleMap[roleName];
+              if (!roleId) continue;
+              for (const permName of permNames) {
+                const permId = permMap[permName];
+                if (!permId) {
+                  console.warn(`  ⚠  Permission tidak ditemukan: ${permName}`);
+                  continue;
+                }
+                await query(
+                  `INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)`,
+                  [roleId, permId]
+                );
               }
-             
-              await query(
-                `INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)`,
-                [roleId, permId]
-              );
             }
+            console.log("  ✓ Default role permissions seeded");
+          } else {
+            console.log("  ✓ Existing role permissions preserved");
           }
-          console.log("  ✓ Role permissions assigned");
 
           // ── 5. Users ──────────────────────────────────────────────────────
           const superadminPassword = await bcrypt.hash("superadmin123", 10);

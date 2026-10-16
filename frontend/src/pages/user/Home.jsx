@@ -419,9 +419,13 @@ export default function Home() {
 
   const handleLogout = () => { localStorage.clear(); sessionStorage.clear(); window.location.href = "/"; };
 
-  const sudahAbsenSekre = homeData?.secretariat_attendance !== null;
+  const sudahAbsenSekre = homeData?.secretariat_attendance?.status === "hadir";
+  const isIgm           = Number(user?.is_igm) === 1;
   const jabatan         = user?.jabatan    || "-";
-  const kementerian     = user?.kementerian || null;
+  const kementerian     = (isIgm ? user?.igm_kementerian : user?.kementerian) || null;
+  const identityLabel   = isIgm
+    ? `IGM${kementerian ? ` — ${kementerian}` : ""}`
+    : `${jabatan}${kementerian ? ` — ${kementerian}` : ""}`;
 
   const IconCheck = () => (
     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -652,7 +656,7 @@ export default function Home() {
             <h1 className="text-white font-bold text-lg leading-tight">{user?.name?.toUpperCase()}</h1>
             <p className="text-green-100 text-xs mt-0.5">{user?.nim}</p>
             <p className="text-green-100 text-xs font-medium mt-1">
-              {jabatan}{kementerian ? ` — ${kementerian}` : ""}
+              {identityLabel}
             </p>
             <div className="flex flex-col gap-1 mt-3">
               <div className="flex items-start gap-1.5 text-green-100 text-xs">
@@ -830,9 +834,15 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-              ) : waktu.bisa ? (
-                <div className="flex items-center gap-2 text-red-400 text-sm mb-3"><span>Anda belum absen hari ini</span></div>
-              ) : null}
+              ) : (
+                <div className="flex items-center gap-2 text-red-400 text-sm mb-3">
+                  <span>
+                    {waktu.bisa || homeData?.secretariat_attendance?.status === "tidak_hadir"
+                      ? "Anda belum absen hari ini"
+                      : waktu.pesan}
+                  </span>
+                </div>
+              )}
 
               <button
                 onClick={() => handleAmbilAbsensi("sekre")}

@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
+import usePermissions from "../../hooks/usePermissions";
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
+import { FileSpreadsheet } from "lucide-react";
+import XLSX from "xlsx-js-style";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const UPLOADS  = API_BASE.replace("/api", "") + "/uploads/";
@@ -111,6 +114,9 @@ const buildDoughnutOptions = () => ({
 });
 
 export default function Aspirasi() {
+  const { hasPermission } = usePermissions();
+  const canManageAspirasi = hasPermission("aspirasi.manage");
+  const canExportReports = hasPermission("reports.export");
   const [list,      setList]      = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
@@ -204,6 +210,7 @@ export default function Aspirasi() {
   }, [dateFiltered]);
 
   const handleUpdateStatus = async (id, val) => {
+    if (!canManageAspirasi) return;
     setUpdatingId(`status-${id}`);
     try {
       const res = await fetch(`${API_BASE}/aspirasi/${id}/status`, {
@@ -219,6 +226,7 @@ export default function Aspirasi() {
   };
 
   const handleUpdatePrioritas = async (id, val) => {
+    if (!canManageAspirasi) return;
     setUpdatingId(`prioritas-${id}`);
     try {
       const res = await fetch(`${API_BASE}/aspirasi/${id}/prioritas`, {
@@ -234,7 +242,7 @@ export default function Aspirasi() {
   };
 
   const handleSaveCatatan = async () => {
-    if (!selected) return;
+    if (!selected || !canManageAspirasi) return;
     setSavingNote(true); setNoteOk(false);
     try {
       const res = await fetch(`${API_BASE}/aspirasi/${selected.id}/catatan`, {
@@ -275,6 +283,49 @@ export default function Aspirasi() {
     if (b.status === "baru" && a.status !== "baru") return 1;
     return new Date(b.created_at) - new Date(a.created_at);
   });
+  
+  const handleExport = () => {
+    if (rows.length === 0) return;
+
+    const exportRows = rows.map((item, index) => ({
+      No: index + 1,
+      Tanggal: fmtDateTime(item.created_at),
+      Pengirim: item.nama || "Anonim",
+      Fakultas: item.fakultas || "",
+      Kategori: item.nama_kategori || "",
+      Aspirasi: item.isi || "",
+      Status: cap(item.status || "baru"),
+      Prioritas: cap(item.prioritas || "normal"),
+      "Catatan Internal": item.catatan_internal || "",
+      Lampiran: parseFotos(item.foto).join("; "),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    worksheet["!cols"] = [
+      { wch: 6 }, { wch: 22 }, { wch: 24 }, { wch: 24 }, { wch: 24 },
+      { wch: 60 }, { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 36 },
+    ];
+
+    const headerRange = XLSX.utils.decode_range(worksheet["!ref"]);
+    for (let column = headerRange.s.c; column <= headerRange.e.c; column += 1) {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: 0, c: column })];
+      if (cell) {
+        cell.s = {
+          font: { bold: true, color: { rgb: "FFFFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "FF00923D" } },
+          alignment: { vertical: "center", wrapText: true },
+        };
+      }
+    }
+    worksheet["!autofilter"] = { ref: worksheet["!ref"] };
+    worksheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Aspirasi");
+    const dateRange = dateFrom || dateTo
+      ? `${dateFrom || "awal"}_sd_${dateTo || todayStr}`
+      : "semua_waktu";
+    XLSX.writeFile(workbook, `Data_Aspirasi_${dateRange}.xlsx`);
+  };
 
   const activeF = [filterStatus, filterKat, filterFakultas, filterPrioritas].filter(Boolean).length;
   const resetFilters = () => {
@@ -413,6 +464,14 @@ export default function Aspirasi() {
                       <CloseSmIcon /> Reset ({activeF})
                     </button>
                   )}
+                  {canExportReports && <button
+                    type="button"
+                    onClick={handleExport}
+                    disabled={loading || rows.length === 0}
+                    className="ml-auto inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#00923D] px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <FileSpreadsheet size={16} /> Export Excel
+                  </button>}
                 </div>
               </div>
 
@@ -482,7 +541,7 @@ export default function Aspirasi() {
 
                               <td className="px-4 py-3" style={{ minWidth: "130px" }}>
                                 <select value={d.status}
-                                  disabled={updatingId === `status-${d.id}`}
+                                  disabled={!canManageAspirasi || updatingId === `status-${d.id}`}
                                   onChange={(e) => handleUpdateStatus(d.id, e.target.value)}
                                   className={`text-xs rounded-lg px-2.5 py-1.5 border outline-none cursor-pointer disabled:opacity-50 font-medium w-full ${STATUS_BADGE[d.status]}`}>
                                   {STATUS_LIST.map((s) => <option key={s} value={s}>{cap(s)}</option>)}
@@ -491,7 +550,7 @@ export default function Aspirasi() {
 
                               <td className="px-4 py-3 w-28">
                                 <button
-                                  disabled={updatingId === `prioritas-${d.id}`}
+                                  disabled={!canManageAspirasi || updatingId === `prioritas-${d.id}`}
                                   onClick={() => handleUpdatePrioritas(d.id, d.prioritas === "urgent" ? "normal" : "urgent")}
                                   className={`text-xs rounded-lg px-2.5 py-1.5 border font-medium transition-colors disabled:opacity-50 w-full ${
                                     d.prioritas === "urgent"
@@ -665,7 +724,7 @@ export default function Aspirasi() {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Status</label>
                   <select value={selected.status}
-                    disabled={updatingId === `status-${selected.id}`}
+                    disabled={!canManageAspirasi || updatingId === `status-${selected.id}`}
                     onChange={(e) => handleUpdateStatus(selected.id, e.target.value)}
                     className={`w-full text-xs rounded-xl px-3 py-2.5 border outline-none font-medium disabled:opacity-50 cursor-pointer ${STATUS_BADGE[selected.status]}`}>
                     {STATUS_LIST.map((s) => <option key={s} value={s}>{cap(s)}</option>)}
@@ -675,7 +734,7 @@ export default function Aspirasi() {
                   <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Prioritas</label>
                   <button
                     onClick={() => handleUpdatePrioritas(selected.id, selected.prioritas === "urgent" ? "normal" : "urgent")}
-                    disabled={updatingId === `prioritas-${selected.id}`}
+                    disabled={!canManageAspirasi || updatingId === `prioritas-${selected.id}`}
                     className={`w-full text-xs rounded-xl px-3 py-2.5 border font-medium transition-colors disabled:opacity-50 ${
                       selected.prioritas === "urgent"
                         ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
@@ -716,13 +775,13 @@ export default function Aspirasi() {
 
               <div>
                 <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Catatan Internal</label>
-                <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)}
+                <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} readOnly={!canManageAspirasi}
                   placeholder="Tambahkan catatan tindak lanjut..."
                   rows={3}
                   className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-3 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 resize-none placeholder:text-gray-300 transition" />
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-[11px] text-gray-300">{catatan.length} karakter</span>
-                  <button onClick={handleSaveCatatan} disabled={savingNote}
+                  <button onClick={handleSaveCatatan} disabled={!canManageAspirasi || savingNote}
                     className="text-xs text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-60 font-medium"
                     style={{ background: noteOk ? "#16a34a" : GREEN }}>
                     {savingNote ? "Menyimpan..." : noteOk ? "✓ Tersimpan" : "Simpan catatan"}

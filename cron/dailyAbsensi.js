@@ -8,8 +8,8 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-cron.schedule('1 18 * * 1-5', () => {
-  console.log('[CRON] Mengisi tidak_hadir untuk hari ini...');
+cron.schedule('1 20 * * 1-5', () => {
+  console.log('[CRON] Mengisi tidak_hadir setelah batas absensi...');
   const today = getLocalDateString();
 
   db.query(
@@ -34,6 +34,28 @@ cron.schedule('1 18 * * 1-5', () => {
       });
 
       console.log(`[CRON] Selesai, ${users.length} user diproses.`);
+
+      db.query(
+        `SELECT im.user_id, im.period_id
+         FROM igm_members im
+         JOIN periods p ON p.id = im.period_id AND p.is_active = TRUE
+         WHERE im.is_active = TRUE`,
+        [],
+        (igmErr, igmUsers) => {
+          if (igmErr) return console.error('[CRON] Error ambil anggota IGM:', igmErr);
+          igmUsers.forEach(({ user_id, period_id }) => {
+            db.query(
+              `INSERT IGNORE INTO secretariat_attendance (user_id, period_id, date, status)
+               VALUES (?, ?, ?, 'tidak_hadir')`,
+              [user_id, period_id, today],
+              (insertErr) => {
+                if (insertErr) console.error('[CRON] Error insert absensi IGM:', insertErr);
+              }
+            );
+          });
+          console.log(`[CRON] ${igmUsers.length} anggota IGM diproses.`);
+        }
+      );
     }
   );
 }, {

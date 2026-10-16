@@ -109,15 +109,10 @@ const getKColor = (kem) => KELOMPOK_COLOR[kem] ?? KELOMPOK_COLOR._default;
 export default function useExportAbsensi() {
   const [exportMsg, setExportMsg] = useState("");
 
-  const handleExport = ({ rekapData, rekapDates, rekapDateStart, rekapDateEnd, filterKem }) => {
+  const handleExport = ({ rekapData, rekapDates, rekapDateStart, rekapDateEnd, filterKem, isIgm = false }) => {
     if (!rekapData || rekapData.length === 0) {
       alert("Tidak ada data untuk diekspor.");
       return;
-    }
-
-    if (rekapData[0]) {
-      console.log("[Export] Field tersedia:", Object.keys(rekapData[0]));
-      console.log("[Export] Nilai jabatan:", rekapData[0].jabatan);
     }
 
     const hariKerjaDates = rekapDates.filter(isHariKerja);
@@ -127,12 +122,12 @@ export default function useExportAbsensi() {
     }
 
     const wb = XLSX.utils.book_new();
-    buildSheetRekap(wb, rekapData, hariKerjaDates, rekapDateStart, rekapDateEnd);
-    buildSheetRekapKementerian(wb, rekapData, hariKerjaDates, rekapDateStart, rekapDateEnd, filterKem); // ← SHEET BARU
-    buildSheetLegenda(wb, rekapDateStart, rekapDateEnd, filterKem, hariKerjaDates.length);
+    buildSheetRekap(wb, rekapData, hariKerjaDates, rekapDateStart, rekapDateEnd, isIgm);
+    buildSheetRekapKementerian(wb, rekapData, hariKerjaDates, rekapDateStart, rekapDateEnd, filterKem, isIgm);
+    buildSheetLegenda(wb, rekapDateStart, rekapDateEnd, filterKem, hariKerjaDates.length, isIgm);
 
     const kemLabel = filterKem === "all" ? "Semua" : filterKem.replace(/\s+/g, "_");
-    const filename = `Rekap_Absen_${kemLabel}_${rekapDateStart}_sd_${rekapDateEnd}.xlsx`;
+    const filename = `Rekap_Absen_${isIgm ? "IGM_" : ""}${kemLabel}_${rekapDateStart}_sd_${rekapDateEnd}.xlsx`;
 
     XLSX.writeFile(wb, filename, { bookType: "xlsx", type: "binary", cellStyles: true });
     setExportMsg(`✓ File "${filename}" berhasil diekspor (${rekapData.length} anggota, ${hariKerjaDates.length} hari kerja).`);
@@ -144,7 +139,7 @@ export default function useExportAbsensi() {
 
 // ─── Sheet 1: Rekap Kehadiran ─────────────────────────────────────────────────
 
-function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
+function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate, isIgm) {
   const ws     = {};
   const range  = { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
   const merges = [];
@@ -153,9 +148,9 @@ function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
   const C_NO   = 0;
   const C_NAMA = 1;
   const C_NIM  = 2;
-  const C_JAB  = 3;
-  const C_KEM  = 4;
-  const C_DATE = 5;
+  const C_JAB  = isIgm ? null : 3;
+  const C_KEM  = isIgm ? 3 : 4;
+  const C_DATE = isIgm ? 4 : 5;
   const C_H    = C_DATE + N;
   const C_TH   = C_DATE + N + 1;
   const C_D    = C_DATE + N + 2;
@@ -170,7 +165,7 @@ function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
   };
 
   // ── Judul ─────────────────────────────────────────────────────────────────
-  set(0, 0, "REKAP ABSENSI SEKRETARIAT",
+  set(0, 0, isIgm ? "REKAP ABSENSI IGM" : "REKAP ABSENSI SEKRETARIAT",
     S({ bold: true, size: 16, color: "FF1A3C29", align: "center" })
   );
   merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: C_LAST } });
@@ -188,7 +183,7 @@ function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
   set(R_HEAD, C_NO,   "No.",                hFix("center"));
   set(R_HEAD, C_NAMA, "Nama Lengkap",       hFix("left"));
   set(R_HEAD, C_NIM,  "NIM",                hFix("center"));
-  set(R_HEAD, C_JAB,  "Jabatan",            hFix("left"));
+  if (!isIgm) set(R_HEAD, C_JAB, "Jabatan", hFix("left"));
   set(R_HEAD, C_KEM,  "Kementerian/Divisi", hFix("left"));
 
   rekapDates.forEach((d, i) => {
@@ -248,13 +243,13 @@ function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
       const rowBg = mi % 2 === 0 ? "FFFFFFFF" : "FFF9FAFB";
       const td    = (align = "left") => S({ bgColor: rowBg, align, border: true, size: 10 });
 
-      const jabatanValue =
-        user.jabatan || user.position || user.role_label || user.jabatan_name || "—";
-
       set(curRow, C_NO,   noUrut,            S({ bgColor: rowBg, align: "center", border: true, size: 10 }));
       set(curRow, C_NAMA, user.name  || "—", td("left"));
       set(curRow, C_NIM,  user.nim   || "—", td("center"));
-      set(curRow, C_JAB,  jabatanValue,       td("left"));
+      if (!isIgm) {
+        const jabatanValue = user.jabatan || user.position || user.role_label || user.jabatan_name || "—";
+        set(curRow, C_JAB, jabatanValue, td("left"));
+      }
       set(curRow, C_KEM,  kem,               td("left"));
 
       let totH = 0, totTH = 0, totD = 0;
@@ -307,7 +302,7 @@ function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
     { wch: 5  },
     { wch: 26 },
     { wch: 15 },
-    { wch: 22 },
+    ...(isIgm ? [] : [{ wch: 22 }]),
     { wch: 26 },
     ...rekapDates.map(() => ({ wch: 13 })),
     { wch: 8  },
@@ -328,7 +323,7 @@ function buildSheetRekap(wb, rawData, rekapDates, startDate, endDate) {
 
 // ─── Sheet 2: Rekap per Kementerian ──────────────────────────────────────────
 
-function buildSheetRekapKementerian(wb, rawData, rekapDates, startDate, endDate, filterKem) {
+function buildSheetRekapKementerian(wb, rawData, rekapDates, startDate, endDate, filterKem, isIgm) {
   const ws     = {};
   const range  = { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
   const merges = [];
@@ -342,7 +337,7 @@ function buildSheetRekapKementerian(wb, rawData, rekapDates, startDate, endDate,
   };
 
   // ── Judul ─────────────────────────────────────────────────────────────────
-  set(0, 0, "REKAP KEHADIRAN PER KEMENTERIAN / DIVISI",
+  set(0, 0, isIgm ? "REKAP KEHADIRAN IGM PER KEMENTERIAN" : "REKAP KEHADIRAN PER KEMENTERIAN / DIVISI",
     S({ bold: true, size: 14, color: "FF1A3C29", align: "center" })
   );
   merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } });
@@ -360,7 +355,7 @@ function buildSheetRekapKementerian(wb, rawData, rekapDates, startDate, endDate,
 
   // ── Header kolom ──────────────────────────────────────────────────────────
   const R_HEAD = 4;
-  const cols      = ["Kementerian / Divisi", "Total Staf", "Total Hadir", "Total Tidak Hadir", "Total Ditolak", "% Kehadiran"];
+  const cols      = ["Kementerian / Divisi", isIgm ? "Total Anggota IGM" : "Total Staf", "Total Hadir", "Total Tidak Hadir", "Total Ditolak", "% Kehadiran"];
   const colAligns = ["left", "center", "center", "center", "center", "center"];
   const colBgs    = ["FF2D5A3D", "FF2D5A3D", "FF4A7C59", "FF8B95A1", "FFB05060", "FF4A6FA5"];
 
@@ -470,7 +465,7 @@ function buildSheetRekapKementerian(wb, rawData, rekapDates, startDate, endDate,
 
 // ─── Sheet 3: Legenda ─────────────────────────────────────────────────────────
 
-function buildSheetLegenda(wb, startDate, endDate, filterKem, totalHariKerja) {
+function buildSheetLegenda(wb, startDate, endDate, filterKem, totalHariKerja, isIgm) {
   const ws    = {};
   const range = { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
 
@@ -512,7 +507,7 @@ function buildSheetLegenda(wb, startDate, endDate, filterKem, totalHariKerja) {
 
   set(13, 0, "Sheet dalam file ini:", S({ bold: true, size: 10, color: "FF374151" }));
   [
-    ["Rekap Kehadiran",    "Daftar lengkap kehadiran per anggota per hari kerja"],
+    ["Rekap Kehadiran",    `Daftar lengkap kehadiran ${isIgm ? "anggota IGM" : "anggota BEM"} per hari kerja`],
     ["Rekap Kementerian",  "Ringkasan total & % kehadiran per kementerian/divisi"],
     ["Legenda",            "Keterangan & panduan membaca file ini"],
   ].forEach(([sheet, desc], i) => {

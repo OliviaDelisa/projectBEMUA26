@@ -8,6 +8,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 import {
   Check, X, Eye, Clock,
   FileSpreadsheet, LayoutGrid, ClipboardCheck, Search,
@@ -87,6 +88,9 @@ function sortedRekapData(data) {
 // ─── Komponen utama ──────────────────────────────────────────────────────────
 
 export default function Absensi() {
+  const { hasPermission } = usePermissions();
+  const canManageAttendance = hasPermission("attendance.manage");
+  const canExportReports = hasPermission("reports.export");
   const [activeView,     setActiveView]     = useState("validasi");
   const [filterKem,      setFilterKem]      = useState("all");
   const [dateFrom,       setDateFrom]       = useState(fmt(today));
@@ -186,16 +190,16 @@ export default function Absensi() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden text-gray-800 font-sans">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <Topbar title="Manajemen Absensi" subtitle="Validasi & Laporan Kehadiran Sekretariat" />
 
         {/* ── Tab navigasi ── */}
-        <div className="bg-white border-b border-gray-200 px-6 flex gap-8">
+        <div className="bg-white border-b border-gray-200 px-4 sm:px-6 flex gap-4 sm:gap-8 overflow-x-auto">
           <TabButton icon={<ClipboardCheck size={16} />} label="Validasi Harian"      active={activeView === "validasi"} onClick={() => setActiveView("validasi")} />
           <TabButton icon={<LayoutGrid size={16} />}     label="Rekapitulasi Periode" active={activeView === "rekap"}    onClick={() => setActiveView("rekap")}    />
         </div>
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
 
           {/* ── Stat cards (hanya tampil di tab validasi) ── */}
           {activeView === "validasi" && (
@@ -211,7 +215,7 @@ export default function Absensi() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
             {/* Header panel */}
-            <div className="p-4 border-b flex items-center justify-between bg-white">
+            <div className="p-3 sm:p-4 border-b flex flex-wrap items-center justify-between gap-2 bg-white">
               <div className="flex items-center gap-2 font-bold text-green-800 uppercase text-xs tracking-widest">
                 <CalendarIcon />
                 {activeView === "validasi" ? "Live Monitoring & Validasi" : "Data Rekapitulasi Anggota"}
@@ -224,7 +228,7 @@ export default function Absensi() {
             </div>
 
             {/* Filter bar */}
-            <div className="p-4 bg-gray-50/50 flex flex-wrap gap-6 items-end border-b border-gray-100">
+            <div className="p-3 sm:p-4 bg-gray-50/50 flex flex-wrap gap-3 sm:gap-6 items-stretch sm:items-end border-b border-gray-100">
 
               {/* ── Pencarian nama (baru) ── */}
               <FilterGroup label="Cari Nama">
@@ -233,7 +237,7 @@ export default function Absensi() {
                   <input
                     type="text"
                     placeholder="Ketik nama anggota..."
-                    className="bg-white border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:border-green-500 min-w-[200px]"
+                    className="bg-white border border-gray-200 rounded-lg pl-8 pr-3 py-2 sm:py-1.5 text-xs outline-none focus:border-green-500 w-full sm:min-w-[200px]"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -251,7 +255,7 @@ export default function Absensi() {
               {/* Filter kementerian */}
               <FilterGroup label="Kementerian">
                 <select
-                  className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-green-500"
+                  className="bg-white border border-gray-200 rounded-lg px-3 py-2 sm:py-1.5 text-xs outline-none focus:border-green-500 w-full sm:w-auto"
                   value={filterKem}
                   onChange={(e) => setFilterKem(e.target.value)}
                 >
@@ -267,28 +271,28 @@ export default function Absensi() {
                 <FilterGroup label="Pilih Tanggal">
                   <input
                     type="date"
-                    className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-green-500"
+                    className="bg-white border border-gray-200 rounded-lg px-3 py-2 sm:py-1.5 text-xs outline-none focus:border-green-500 w-full sm:w-auto"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
                   />
                 </FilterGroup>
               ) : (
                 <FilterGroup label="Rentang Rekapitulasi">
-                  <div className="flex items-center gap-2 bg-white p-1 px-3 border border-gray-200 rounded-lg shadow-sm">
-                    <input type="date" className="text-xs outline-none bg-transparent py-1" value={rekapDateStart} onChange={(e) => setRekapDateStart(e.target.value)} />
+                  <div className="flex w-full sm:w-auto items-center gap-1 sm:gap-2 bg-white p-1 px-2 sm:px-3 border border-gray-200 rounded-lg shadow-sm">
+                    <input type="date" className="min-w-0 flex-1 text-xs outline-none bg-transparent py-1" value={rekapDateStart} onChange={(e) => setRekapDateStart(e.target.value)} />
                     <span className="text-gray-300 text-xs font-bold">s/d</span>
-                    <input type="date" className="text-xs outline-none bg-transparent py-1" value={rekapDateEnd}   onChange={(e) => setRekapDateEnd(e.target.value)} />
+                    <input type="date" className="min-w-0 flex-1 text-xs outline-none bg-transparent py-1" value={rekapDateEnd}   onChange={(e) => setRekapDateEnd(e.target.value)} />
                   </div>
                 </FilterGroup>
               )}
 
               {/* Tombol export — hanya tampil di tab rekap, rata kanan */}
-              {activeView === "rekap" && (
-                <div className="flex flex-col gap-1.5 ml-auto shrink-0">
+              {activeView === "rekap" && canExportReports && (
+                <div className="flex flex-col gap-1.5 ml-auto w-full sm:w-auto shrink-0">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest opacity-0">Export</label>
                   <button
                     onClick={() => handleExport({ rekapData, rekapDates, rekapDateStart, rekapDateEnd, filterKem })}
-                    className="bg-[#00923D] hover:bg-green-700 text-white font-bold py-1.5 px-5 rounded-lg flex items-center gap-2 text-xs uppercase tracking-widest transition-all shadow-md shadow-green-100 whitespace-nowrap h-[34px]"
+                    className="bg-[#00923D] hover:bg-green-700 text-white font-bold py-2 sm:py-1.5 px-5 rounded-lg flex items-center justify-center gap-2 text-xs uppercase tracking-widest transition-all shadow-md shadow-green-100 whitespace-nowrap sm:h-[34px]"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
                   </button>
@@ -306,16 +310,16 @@ export default function Absensi() {
             </div>
 
             {/* ── Tabel ── */}
-            <div className="p-0 overflow-x-auto">
+            <div className="p-0 overflow-x-auto overscroll-x-contain">
               {activeView === "validasi"
-                ? <TableValidasi data={filteredAttendance} onValidate={handleValidate} onPhotoClick={setSelectedPhoto} searchQuery={searchQuery} />
+                ? <TableValidasi data={filteredAttendance} onValidate={handleValidate} onPhotoClick={setSelectedPhoto} searchQuery={searchQuery} canValidate={canManageAttendance} />
                 : <TableRekap data={filteredRekap} dates={rekapDates} searchQuery={searchQuery} />
               }
             </div>
 
             {/* Legenda rekap */}
-            {activeView === "rekap" && (
-              <div className="p-6 border-t flex flex-wrap gap-6 items-center bg-gray-50/50">
+            {activeView !== "validasi" && (
+              <div className="p-4 sm:p-6 border-t flex flex-wrap gap-3 sm:gap-6 items-center bg-gray-50/50">
                 <LegendItem label="Hadir (Tervalidasi)"  status="hadir"    />
                 <LegendItem label="Ditolak"              status="rejected"  />
                 <LegendItem label="Alfa (Tidak Absen)"   status="alfa"      />
@@ -356,7 +360,7 @@ function TabButton({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${
+      className={`shrink-0 whitespace-nowrap py-3 sm:py-4 text-[10px] sm:text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${
         active ? "border-green-600 text-green-700" : "border-transparent text-gray-400 hover:text-gray-700"
       }`}
     >
@@ -367,7 +371,7 @@ function TabButton({ icon, label, active, onClick }) {
 
 function FilterGroup({ label, children }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex w-full min-w-0 flex-col gap-1.5 sm:w-auto">
       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</label>
       {children}
     </div>
@@ -446,7 +450,7 @@ function Highlight({ text = "", query = "" }) {
 
 // ─── Tabel validasi harian ───────────────────────────────────────────────────
 
-function TableValidasi({ data, onValidate, onPhotoClick, searchQuery }) {
+function TableValidasi({ data, onValidate, onPhotoClick, searchQuery, canValidate }) {
   return (
     <table className="w-full text-left text-sm border-collapse animate-in fade-in duration-500">
       <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b">
@@ -455,7 +459,7 @@ function TableValidasi({ data, onValidate, onPhotoClick, searchQuery }) {
           <th className="px-6 py-4">Waktu & Lokasi</th>
           <th className="px-6 py-4">Foto Absensi</th>
           <th className="px-6 py-4">Status</th>
-          <th className="px-6 py-4 text-center">Validasi</th>
+          {canValidate && <th className="px-6 py-4 text-center">Validasi</th>}
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100">
@@ -469,7 +473,7 @@ function TableValidasi({ data, onValidate, onPhotoClick, searchQuery }) {
                 {row.nim} • {row.kementerian}
               </div>
             </td>
-            <td className="px-6 py-4">
+            {canValidate && <td className="px-6 py-4">
               <div className="flex items-center gap-1.5 text-gray-700 font-medium text-xs">
                 <Clock className="w-3 h-3 text-gray-400" />
                 {new Date(row.check_in_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
@@ -477,7 +481,7 @@ function TableValidasi({ data, onValidate, onPhotoClick, searchQuery }) {
               <div className={`text-[10px] mt-1 ${row.distance_meters > 1500 ? "text-red-500 font-bold" : "text-green-600"}`}>
                 {row.distance_meters}m dari Sekre
               </div>
-            </td>
+            </td>}
             <td className="px-6 py-4">
               {row.selfie_photo ? (
                 <div
@@ -521,7 +525,7 @@ function TableValidasi({ data, onValidate, onPhotoClick, searchQuery }) {
           </tr>
         )) : (
           <tr>
-            <td colSpan="5" className="px-6 py-20 text-center text-gray-400 italic font-medium">
+            <td colSpan={canValidate ? 5 : 4} className="px-6 py-20 text-center text-gray-400 italic font-medium">
               {searchQuery
                 ? `Tidak ada anggota dengan nama "${searchQuery}"`
                 : "Belum ada aktivitas absensi pada tanggal ini"}
@@ -642,7 +646,6 @@ function TableRekap({ data, dates, searchQuery }) {
                       <td className="px-3 py-3 text-[11px] text-gray-500 font-mono">{user.nim || "—"}</td>
                       {/* Kementerian */}
                       <td className="px-3 py-3 text-[11px] text-gray-600">{kem}</td>
-                      {/* Jabatan */}
                       <td className="px-3 py-3 text-[11px] text-gray-600 italic">{jabatan}</td>
 
                       {/* Kolom tanggal */}

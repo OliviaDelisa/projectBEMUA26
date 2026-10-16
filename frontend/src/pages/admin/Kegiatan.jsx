@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Sidebar from "../../components/Sidebar";
 import Topbar from "../../components/Topbar";
 import API from "../../config/api";
+import usePermissions from "../../hooks/usePermissions";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { exportAbsensiExcel, buildRekapKementerian } from "../../hooks/ExportKegiatan";
@@ -153,6 +154,12 @@ const LEAFLET_OVERRIDE = `
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ManajemenKegiatan() {
+  const { hasPermission } = usePermissions();
+  const canCreate = hasPermission("activities.create");
+  const canEdit = hasPermission("activities.edit");
+  const canDelete = hasPermission("activities.delete");
+  const canViewAttendance = hasPermission("activities.view_attendance");
+  const canExportReports = hasPermission("reports.export");
   const [kegiatanList, setKegiatanList] = useState([]);
   const [memberList, setMemberList] = useState([]);
   const [activeFilter, setActiveFilter] = useState("semua");
@@ -576,7 +583,7 @@ const end   = parseDBDateTime(k.end_datetime);
 
         {/* Top action bar */}
         <div className="flex justify-end px-4 md:px-7 py-4">
-          <button
+          {canCreate && <button
             onClick={() => {
               setIsEditing(null); setEditingStatus(null); setFormErrors({});
               setGeoQuery(""); setGeoResults([]); setCoordError("");
@@ -589,7 +596,7 @@ const end   = parseDBDateTime(k.end_datetime);
             style={{ backgroundColor: "#00923D" }}
           >
             <Plus size={15} /> Buat Kegiatan
-          </button>
+          </button>}
         </div>
 
         <div className="px-4 md:px-7 pb-7 space-y-5 overflow-y-auto">
@@ -658,7 +665,7 @@ const end   = parseDBDateTime(k.end_datetime);
                         </div>
 
                         {/* Quick stats */}
-                        <div className="flex gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-none">
+                        {canViewAttendance && <div className="flex gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-none">
                           {[
                             { label: "Total", val: jmlPeserta, filter: "semua", cls: "text-gray-500 bg-white border-gray-200 hover:border-gray-300" },
                             { label: "Hadir", val: jmlHadir,   filter: "hadir", cls: "text-emerald-600 bg-emerald-50 border-emerald-200 hover:border-emerald-300" },
@@ -672,23 +679,23 @@ const end   = parseDBDateTime(k.end_datetime);
                               <span className="text-[10px] opacity-70">{item.label}</span>
                             </button>
                           ))}
-                        </div>
+                        </div>}
 
                         {/* Footer actions */}
                         <div className="flex gap-2 p-4 border-t border-gray-100">
-                          <button
+                          {canViewAttendance && <button
                             onClick={() => { setDetailId(k.id); fetchAttendance(k.id); setDrawerTab("daftar"); setDrawerAbsenFilter(null); }}
                             className="flex-1 h-8 text-xs font-medium text-white rounded-lg transition"
                             style={{ backgroundColor: "#00923D" }}
                           >
                             Kelola Absensi
-                          </button>
-                          {s !== "selesai" && (
+                          </button>}
+                          {canEdit && s !== "selesai" && (
                             <button onClick={() => handleEditOpen(k)} className="h-8 w-8 flex items-center justify-center border border-gray-200 hover:border-gray-300 rounded-lg text-gray-500 hover:text-gray-700 transition">
                               <Edit3 size={14} />
                             </button>
                           )}
-                          {s === "mendatang" && (
+                          {canDelete && s === "mendatang" && (
                             <button onClick={() => handleDeleteClick(k.id, k.title)} className="h-8 w-8 flex items-center justify-center border border-red-200 hover:border-red-300 rounded-lg text-red-400 hover:text-red-600 transition">
                               <Trash2 size={14} />
                             </button>
@@ -988,13 +995,13 @@ const end   = parseDBDateTime(k.end_datetime);
                     <RefreshCw size={12} className={refreshingAbsensi ? "animate-spin" : ""} />
                     {refreshingAbsensi ? "Memuat..." : "Refresh"}
                   </button>
-                  <button
+                  {canExportReports && <button
                     onClick={() => exportAbsensiExcel(activeKegiatan, absensiDetail)}
                     className="flex items-center gap-1.5 h-7 px-3 text-xs text-white rounded-lg transition"
                     style={{ backgroundColor: "#00923D" }}
                   >
                     <FileSpreadsheet size={12} /> Export
-                  </button>
+                  </button>}
                 </div>
               </div>
 
