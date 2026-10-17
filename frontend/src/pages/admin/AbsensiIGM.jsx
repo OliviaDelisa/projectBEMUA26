@@ -24,25 +24,32 @@ const dateValue = date => {
 
 const parseDate = value => new Date(`${String(value).slice(0, 10)}T00:00:00`);
 const dayName = date => ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"][date.getDay()];
+const attendanceCategory = status => {
+  if (status === "rejected") return "rejected";
+  if (status === "hadir" || status === "pending") return "hadir";
+  return "alfa";
+};
+
+const attendanceLabels = { hadir: "Hadir", rejected: "Ditolak", alfa: "Alfa" };
 
 function StatusBadge({ status }) {
+  const category = attendanceCategory(status);
   const styles = {
-    pending: "border-amber-100 bg-amber-50 text-amber-600",
     hadir: "border-green-100 bg-green-50 text-green-700",
     rejected: "border-red-100 bg-red-50 text-red-600",
-    tidak_hadir: "border-gray-100 bg-gray-50 text-gray-500",
+    alfa: "border-orange-100 bg-orange-50 text-orange-600",
   };
-  return <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${styles[status] || styles.pending}`}>{status?.replace("_", " ")}</span>;
+  return <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${styles[category]}`}>{attendanceLabels[category]}</span>;
 }
 
 function StatusDot({ status }) {
+  const category = attendanceCategory(status);
   const colors = {
     hadir: "bg-green-500",
-    pending: "bg-amber-400",
     rejected: "bg-red-500",
-    tidak_hadir: "bg-red-200",
+    alfa: "bg-orange-300",
   };
-  return <span title={status || "Alfa"} className={`mx-auto block h-5 w-5 rounded-md ${colors[status] || "bg-orange-300"}`} />;
+  return <span title={attendanceLabels[category]} className={`mx-auto block h-5 w-5 rounded-md ${colors[category]}`} />;
 }
 
 export default function AbsensiIGM() {
@@ -250,21 +257,21 @@ export default function AbsensiIGM() {
               <div className="max-w-full overflow-auto overscroll-x-contain">
                 <table className="w-full min-w-max border-collapse text-left text-sm">
                   <thead className="sticky top-0 z-10 border-b bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    <tr><th className="sticky left-0 z-20 w-10 min-w-10 bg-gray-50 px-2 py-3 text-center">No</th><th className="sticky left-10 z-20 min-w-32 whitespace-nowrap bg-gray-50 px-3 py-3 sm:min-w-44 sm:px-4">Nama</th><th className="px-3 py-3">NIM</th><th className="min-w-36 px-3 py-3 sm:min-w-48">Kementerian</th>{workDates.map(day => <th key={dateValue(day)} className="min-w-10 border-l border-gray-100 px-1 py-2 text-center sm:min-w-12 sm:px-2"><span className="block text-[9px] text-gray-400">{dayName(day)}</span><span className="mt-1 block text-xs text-gray-700">{day.getDate()}</span></th>)}<th className="sticky right-0 z-20 min-w-20 bg-green-50 px-2 py-3 text-center text-green-700 sm:min-w-24 sm:px-3">Total Hadir</th></tr>
+                    <tr><th className="sticky left-0 z-20 w-10 min-w-10 bg-gray-50 px-2 py-3 text-center">No</th><th className="sticky left-10 z-20 w-28 min-w-28 max-w-28 whitespace-nowrap bg-gray-50 px-2 py-3 sm:w-36 sm:min-w-36 sm:max-w-36 sm:px-3">Nama</th><th className="px-3 py-3">NIM</th><th className="min-w-36 px-3 py-3 sm:min-w-48">Kementerian</th>{workDates.map(day => <th key={dateValue(day)} className="min-w-10 border-l border-gray-100 px-1 py-2 text-center sm:min-w-12 sm:px-2"><span className="block text-[9px] text-gray-400">{dayName(day)}</span><span className="mt-1 block text-xs text-gray-700">{day.getDate()}</span></th>)}<th className="sticky right-0 z-20 min-w-20 bg-green-50 px-2 py-3 text-center text-green-700 sm:min-w-24 sm:px-3">Total Hadir</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {!filteredRecap.length ? <tr><td colSpan={workDates.length + 5} className="p-14 text-center text-gray-400">Belum ada anggota IGM pada periode ini.</td></tr> : Array.from(groupedRecap.entries()).map(([groupName, rows]) => (
                       <Fragment key={groupName}>
-                        <tr><td colSpan={workDates.length + 4} className="sticky left-0 bg-green-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-green-900">{groupName}<span className="ml-2 font-normal normal-case">({rows.length} anggota)</span></td><td className="sticky right-0 bg-green-50" /></tr>
+                        <tr><td colSpan={4} className="sticky left-0 z-20 bg-green-50 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-green-900 sm:px-4">{groupName}<span className="ml-2 font-normal normal-case">({rows.length} anggota)</span></td>{workDates.length > 0 && <td colSpan={workDates.length} className="bg-green-50" />}<td className="sticky right-0 z-20 min-w-20 bg-green-50 sm:min-w-24" /></tr>
                         {rows.map((row, index) => {
-                          const total = Object.values(row.attendance || {}).filter(status => status === "hadir").length;
-                          return <tr key={row.id} className="hover:bg-green-50/30"><td className="sticky left-0 z-10 w-10 min-w-10 bg-white px-2 py-3 text-center text-xs text-gray-400">{index + 1}</td><td className="sticky left-10 z-10 min-w-32 whitespace-nowrap bg-white px-3 py-3 text-xs font-bold text-gray-800 sm:min-w-44 sm:px-4">{row.name}</td><td className="px-3 py-3 font-mono text-[11px] text-gray-500">{row.nim}</td><td className="min-w-36 px-3 py-3 text-[11px] text-gray-600 sm:min-w-48">{row.kementerian}</td>{workDates.map(day => <td key={dateValue(day)} className="border-l border-gray-50 px-1 py-3 text-center sm:px-2"><StatusDot status={row.attendance?.[dateValue(day)]} /></td>)}<td className="sticky right-0 z-10 bg-white px-2 py-3 text-center font-bold text-green-700 sm:px-3">{total}<span className="ml-1 text-[9px] font-normal uppercase text-gray-400">hari</span></td></tr>;
+                          const total = Object.values(row.attendance || {}).filter(status => attendanceCategory(status) === "hadir").length;
+                          return <tr key={row.id} className="hover:bg-green-50/30"><td className="sticky left-0 z-10 w-10 min-w-10 bg-white px-2 py-3 text-center text-xs text-gray-400">{index + 1}</td><td className="sticky left-10 z-10 w-28 min-w-28 max-w-28 bg-white px-2 py-3 text-xs font-bold text-gray-800 sm:w-36 sm:min-w-36 sm:max-w-36 sm:px-3"><span className="block truncate" title={row.name}>{row.name}</span></td><td className="px-3 py-3 font-mono text-[11px] text-gray-500">{row.nim}</td><td className="min-w-36 px-3 py-3 text-[11px] text-gray-600 sm:min-w-48">{row.kementerian}</td>{workDates.map(day => <td key={dateValue(day)} className="border-l border-gray-50 px-1 py-3 text-center sm:px-2"><StatusDot status={row.attendance?.[dateValue(day)]} /></td>)}<td className="sticky right-0 z-10 bg-white px-2 py-3 text-center font-bold text-green-700 sm:px-3">{total}<span className="ml-1 text-[9px] font-normal uppercase text-gray-400">hari</span></td></tr>;
                         })}
                       </Fragment>
                     ))}
                   </tbody>
                 </table>
-                <div className="flex flex-wrap gap-3 border-t bg-gray-50/60 px-4 py-3 text-[10px] font-bold uppercase text-gray-500 sm:gap-5 sm:px-5 sm:py-4"><Legend color="bg-green-500" label="Hadir" /><Legend color="bg-amber-400" label="Menunggu" /><Legend color="bg-red-500" label="Ditolak" /><Legend color="bg-orange-300" label="Alfa" /></div>
+                <div className="flex flex-wrap gap-3 border-t bg-gray-50/60 px-4 py-3 text-[10px] font-bold uppercase text-gray-500 sm:gap-5 sm:px-5 sm:py-4"><Legend color="bg-green-500" label="Hadir" /><Legend color="bg-red-500" label="Ditolak" /><Legend color="bg-orange-300" label="Alfa" /></div>
               </div>
             )}
           </section>
