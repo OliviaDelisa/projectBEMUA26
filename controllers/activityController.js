@@ -8,6 +8,54 @@ const parseDateTime = (dtStr) => {
   return new Date(dtStr.replace(" ", "T") + "+07:00");
 };
 
+const normalizeAudience = (value) => {
+    const raw = value === undefined ? ["bem"] : Array.isArray(value) ? value : String(value).split(",");
+    const selected = [...new Set(raw.filter(item => ["bem", "igm", "sekretaris"].includes(item)))];
+    return selected.includes("bem") ? selected.filter(item => item !== "sekretaris") : selected;
+};
+
+const getActivityParticipants = (periodId, audience, callback) => {
+    const queries = [];
+    const params = [];
+
+    if (audience.includes("bem")) {
+        queries.push("SELECT user_id, 'bem' AS member_type, FALSE AS is_secretary FROM user_periods WHERE period_id = ? AND is_active = TRUE");
+        params.push(periodId);
+    }
+    if (audience.includes("sekretaris")) {
+        queries.push("SELECT user_id, 'bem' AS member_type, TRUE AS is_secretary FROM user_periods WHERE period_id = ? AND is_active = TRUE AND LOWER(jabatan) = 'sekretaris menteri'");
+        params.push(periodId);
+    }
+    if (audience.includes("igm")) {
+        queries.push("SELECT user_id, 'igm' AS member_type, FALSE AS is_secretary FROM igm_members WHERE period_id = ? AND is_active = TRUE");
+        params.push(periodId);
+    }
+
+    db.query(queries.join(" UNION ALL "), params, (err, rows) => {
+        if (err) return callback(err);
+        callback(null, uniqueParticipants(rows));
+    });
+};
+
+const uniqueParticipants = (rows) => {
+    const participants = new Map();
+    rows.forEach(row => {
+        const id = String(row.user_id);
+        const existing = participants.get(id);
+        if (!existing) {
+            participants.set(id, {
+                user_id: row.user_id,
+                member_type: row.member_type,
+                is_secretary: Boolean(row.is_secretary),
+            });
+        } else {
+            existing.is_secretary ||= Boolean(row.is_secretary);
+            if (row.member_type === "igm") existing.member_type = "igm";
+        }
+    });
+    return [...participants.values()];
+};
+
 // ── Helper: ambil "hari ini" jam 00:00:00 dalam WIB ───────────────────────
 const todayWIB = () => {
     const now = new Date();
@@ -48,7 +96,7 @@ exports.createActivity = (req, res) => {
         title, description, location_name,
         latitude, longitude, radius_meters,
         start_datetime, end_datetime,
-        participant_ids, metode
+        audience, metode
     } = req.body;
 
     // ── Validasi: Nama Kegiatan ──────────────────────────────────────────────
@@ -92,55 +140,64 @@ exports.createActivity = (req, res) => {
         return res.status(400).json({ message: "Koordinat lokasi wajib ditentukan." });
     }
 
-    const kode_qr = "KEG-" + crypto.randomBytes(2).toString("hex").toUpperCase();
+    const selectedAudience = normalizeAudience(audience);
+    if (selectedAudience.length === 0) {
+        return res.status(400).json({ message: "Pilih minimal satu kelompok peserta." });
+    }
 
-    const query = `
-        INSERT INTO activities 
-            (title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, kode_qr, metode) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.query("SELECT id FROM periods WHERE is_active = TRUE LIMIT 1", (periodErr, periods) => {
+        if (periodErr) return res.status(500).json({ message: "Gagal mengambil periode aktif", error: periodErr });
+        if (periods.length === 0) return res.status(400).json({ message: "Aktifkan periode kepengurusan terlebih dahulu." });
 
-    const values = [
-        title.trim(),
-        description ? description.trim() : "",
-        location_name.trim(),
-        latitude,
-        longitude,
-        radius_meters || 100,
-        start_datetime,
-        end_datetime,
-        kode_qr,
-        metode || "keduanya",
-    ];
+        const periodId = periods[0].id;
+        getActivityParticipants(periodId, selectedAudience, (participantErr, participants) => {
+            if (participantErr) return res.status(500).json({ message: "Gagal mengambil peserta kegiatan", error: participantErr });
+            if (selectedAudience.includes("sekretaris") && !participants.some(participant => participant.is_secretary)) {
+                return res.status(400).json({ message: "Belum ada anggota aktif dengan jabatan Sekretaris Menteri pada periode ini." });
+            }
+            if (participants.length === 0) return res.status(400).json({ message: "Tidak ada anggota pada kelompok peserta yang dipilih." });
 
-    db.query(query, values, (err, result) => {
-        if (err) return res.status(500).json({ message: "Gagal membuat kegiatan", error: err });
+            const kode_qr = "KEG-" + crypto.randomBytes(2).toString("hex").toUpperCase();
+            const query = `
+                INSERT INTO activities
+                    (title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, kode_qr, metode, audience, period_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            const values = [
+                title.trim(), description ? description.trim() : "", location_name.trim(),
+                latitude, longitude, radius_meters || 100, start_datetime, end_datetime,
+                kode_qr, metode || "keduanya", selectedAudience.join(","), periodId,
+            ];
 
-        const activityId = result.insertId;
-
-        if (participant_ids && participant_ids.length > 0) {
-            const attendanceValues = participant_ids.map((uid) => [activityId, uid, "tidak_hadir"]);
-            db.query(
-                `INSERT INTO activity_attendance (activity_id, user_id, status) VALUES ?`,
-                [attendanceValues],
-                (err2) => {
-                    if (err2) console.error("Gagal insert peserta:", err2);
-                }
-            );
-        }
-
-        res.status(201).json({ message: "Kegiatan berhasil dibuat", id: activityId, kode: kode_qr });
+            db.query(query, values, (err, result) => {
+                if (err) return res.status(500).json({ message: "Gagal membuat kegiatan", error: err });
+                const activityId = result.insertId;
+                const attendanceValues = participants.map(({ user_id, member_type }) => [activityId, user_id, member_type, "tidak_hadir"]);
+                db.query(
+                    "INSERT INTO activity_attendance (activity_id, user_id, member_type, status) VALUES ?",
+                    [attendanceValues],
+                    insertErr => {
+                        if (insertErr) {
+                            return db.query("DELETE FROM activities WHERE id = ?", [activityId], () =>
+                                res.status(500).json({ message: "Gagal menyimpan daftar peserta", error: insertErr })
+                            );
+                        }
+                        res.status(201).json({ message: "Kegiatan berhasil dibuat", id: activityId, kode: kode_qr, audience: selectedAudience });
+                    }
+                );
+            });
+        });
     });
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Update kegiatan
 // ─────────────────────────────────────────────────────────────────────────────
-exports.updateActivity = (req, res) => {
+exports.updateActivity = async (req, res) => {
     const { id } = req.params;
     const {
         title, description, location_name,
         latitude, longitude, radius_meters,
-        start_datetime, end_datetime
+        start_datetime, end_datetime, audience
     } = req.body;
 
     // ── Validasi: Nama Kegiatan ──────────────────────────────────────────────
@@ -180,31 +237,120 @@ exports.updateActivity = (req, res) => {
         return res.status(400).json({ message: "Koordinat lokasi wajib ditentukan." });
     }
 
-    const query = `
-        UPDATE activities SET 
-            title = ?, description = ?, location_name = ?, 
-            latitude = ?, longitude = ?, radius_meters = ?, 
-            start_datetime = ?, end_datetime = ? 
-        WHERE id = ?`;
+    let connection;
+    try {
+        connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+        const [activities] = await connection.query(
+            "SELECT id, period_id, audience, start_datetime FROM activities WHERE id = ? FOR UPDATE",
+            [id]
+        );
+        if (activities.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ message: "Kegiatan tidak ditemukan" });
+        }
 
-    const values = [
-        title.trim(),
-        description ? description.trim() : "",
-        location_name.trim(),
-        latitude,
-        longitude,
-        radius_meters || 100,
-        start_datetime,
-        end_datetime,
-        id,
-    ];
+        const activity = activities[0];
+        const selectedAudience = audience === undefined
+            ? normalizeAudience(activity.audience)
+            : normalizeAudience(audience);
+        if (selectedAudience.length === 0) {
+            await connection.rollback();
+            return res.status(400).json({ message: "Pilih minimal satu kelompok peserta." });
+        }
 
-    db.query(query, values, (err, result) => {
-        if (err) return res.status(500).json({ message: "Gagal memperbarui kegiatan", error: err });
-        if (result.affectedRows === 0) return res.status(404).json({ message: "Kegiatan tidak ditemukan" });
+        const currentAudience = normalizeAudience(activity.audience);
+        const audienceChanged = selectedAudience.join(",") !== currentAudience.join(",");
+        const shouldSyncParticipants = audienceChanged || !activity.period_id;
+        if (audienceChanged && parseDateTime(activity.start_datetime) <= new Date()) {
+            await connection.rollback();
+            return res.status(409).json({ message: "Audiens kegiatan tidak dapat diubah setelah kegiatan dimulai." });
+        }
+        if (audienceChanged) {
+            const [attendance] = await connection.query(
+                "SELECT COUNT(*) AS checked_in FROM activity_attendance WHERE activity_id = ? AND check_in_time IS NOT NULL",
+                [id]
+            );
+            if (Number(attendance[0]?.checked_in) > 0) {
+                await connection.rollback();
+                return res.status(409).json({ message: "Audiens kegiatan tidak dapat diubah setelah absensi pertama tercatat." });
+            }
+        }
 
-        res.json({ message: "Kegiatan berhasil diperbarui" });
-    });
+        let periodId = activity.period_id;
+        let participants = null;
+        if (shouldSyncParticipants) {
+            if (!periodId) {
+                const [periods] = await connection.query("SELECT id FROM periods WHERE is_active = TRUE LIMIT 1");
+                periodId = periods[0]?.id;
+            }
+            if (!periodId) {
+                await connection.rollback();
+                return res.status(400).json({ message: "Periode kegiatan tidak ditemukan." });
+            }
+
+            const participantQueries = [];
+            const participantParams = [];
+            if (selectedAudience.includes("bem")) {
+                participantQueries.push("SELECT user_id, 'bem' AS member_type, FALSE AS is_secretary FROM user_periods WHERE period_id = ? AND is_active = TRUE");
+                participantParams.push(periodId);
+            }
+            if (selectedAudience.includes("sekretaris")) {
+                participantQueries.push("SELECT user_id, 'bem' AS member_type, TRUE AS is_secretary FROM user_periods WHERE period_id = ? AND is_active = TRUE AND LOWER(jabatan) = 'sekretaris menteri'");
+                participantParams.push(periodId);
+            }
+            if (selectedAudience.includes("igm")) {
+                participantQueries.push("SELECT user_id, 'igm' AS member_type, FALSE AS is_secretary FROM igm_members WHERE period_id = ? AND is_active = TRUE");
+                participantParams.push(periodId);
+            }
+            const [rows] = await connection.query(participantQueries.join(" UNION ALL "), participantParams);
+            participants = uniqueParticipants(rows);
+            if (selectedAudience.includes("sekretaris") && !participants.some(participant => participant.is_secretary)) {
+                await connection.rollback();
+                return res.status(400).json({ message: "Belum ada anggota aktif dengan jabatan Sekretaris Menteri pada periode ini." });
+            }
+            if (participants.length === 0) {
+                await connection.rollback();
+                return res.status(400).json({ message: "Tidak ada anggota pada kelompok peserta yang dipilih." });
+            }
+        }
+
+        await connection.query(
+            `UPDATE activities SET title = ?, description = ?, location_name = ?,
+             latitude = ?, longitude = ?, radius_meters = ?, start_datetime = ?, end_datetime = ?,
+             audience = ?, period_id = ? WHERE id = ?`,
+            [title.trim(), description ? description.trim() : "", location_name.trim(), latitude,
+                longitude, radius_meters || 100, start_datetime, end_datetime,
+                selectedAudience.join(","), periodId, id]
+        );
+
+        if (shouldSyncParticipants) {
+            const participantIds = participants.map(participant => participant.user_id);
+            if (audienceChanged) {
+                const placeholders = participantIds.map(() => "?").join(",");
+                await connection.query(
+                    `DELETE FROM activity_attendance WHERE activity_id = ? AND user_id NOT IN (${placeholders})`,
+                    [id, ...participantIds]
+                );
+            }
+            const valuePlaceholders = participants.map(() => "(?, ?, ?, 'tidak_hadir')").join(",");
+            const attendanceValues = participants.flatMap(participant => [id, participant.user_id, participant.member_type]);
+            await connection.query(
+                `INSERT INTO activity_attendance (activity_id, user_id, member_type, status)
+                 VALUES ${valuePlaceholders}
+                 ON DUPLICATE KEY UPDATE member_type = VALUES(member_type)`,
+                attendanceValues
+            );
+        }
+
+        await connection.commit();
+        res.json({ message: "Kegiatan berhasil diperbarui", audience: selectedAudience });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(500).json({ message: "Gagal memperbarui kegiatan", error: err.message });
+    } finally {
+        connection?.release();
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -229,14 +375,19 @@ exports.getActivityAttendance = (req, res) => {
             u.id            AS user_id,
             u.name, 
             u.nim,
-            up.kementerian, 
+            CASE WHEN aa.member_type = 'igm' THEN COALESCE(im.kementerian, up.kementerian) ELSE up.kementerian END AS kementerian,
+            aa.member_type,
             up.jabatan,
             aa.status, 
             aa.check_in_time,
             aa.selfie_photo
         FROM activity_attendance aa
+        JOIN activities a ON a.id = aa.activity_id
         JOIN users u ON aa.user_id = u.id
         LEFT JOIN user_periods up ON up.user_id = u.id AND up.is_active = TRUE
+            AND up.period_id = COALESCE(a.period_id, (SELECT id FROM periods WHERE is_active = TRUE LIMIT 1))
+        LEFT JOIN igm_members im ON im.user_id = u.id
+            AND im.period_id = COALESCE(a.period_id, (SELECT id FROM periods WHERE is_active = TRUE LIMIT 1))
         WHERE aa.activity_id = ?
         ORDER BY up.kementerian ASC, u.name ASC`;
 

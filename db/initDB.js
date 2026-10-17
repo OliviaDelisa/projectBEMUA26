@@ -150,6 +150,7 @@ connection.connect(async (err) => {
           end_datetime   DATETIME      NOT NULL,
           kode_qr        VARCHAR(50)   UNIQUE DEFAULT NULL,
           metode         ENUM('qr','maps','keduanya') DEFAULT 'keduanya',
+          audience       VARCHAR(50)   NOT NULL DEFAULT 'bem,igm',
           period_id      INT           DEFAULT NULL,
           created_by     INT           DEFAULT NULL,
           is_active      BOOLEAN       DEFAULT TRUE,
@@ -165,6 +166,7 @@ connection.connect(async (err) => {
           id            INT AUTO_INCREMENT PRIMARY KEY,
           activity_id   INT           NOT NULL,
           user_id       INT           NOT NULL,
+          member_type   VARCHAR(20)   NOT NULL DEFAULT 'bem',
           check_in_time DATETIME      DEFAULT NULL,
           latitude      DECIMAL(10,8) DEFAULT NULL,
           longitude     DECIMAL(11,8) DEFAULT NULL,
@@ -367,11 +369,11 @@ const createAspirasiTable = `
           );
 
           const dropLegacyIndex = () => {
-            if (!hasLegacyUnique) { seedDefaultData(); return; }
+            if (!hasLegacyUnique) { migrateActivityAudience(); return; }
             connection.query("ALTER TABLE igm_members DROP INDEX user_id", (dropErr) => {
               if (dropErr) throw dropErr;
               console.log("  ✓ IGM membership now supports multiple periods");
-              seedDefaultData();
+              migrateActivityAudience();
             });
           };
 
@@ -383,6 +385,45 @@ const createAspirasiTable = `
               dropLegacyIndex();
             }
           );
+        });
+      };
+
+      const migrateActivityAudience = () => {
+        const ensureColumn = (table, column, definition, done) => {
+          connection.query(`SHOW COLUMNS FROM ${table}`, (err, columns) => {
+            if (err) throw err;
+            if (columns.some(item => item.Field === column)) { done(false); return; }
+            connection.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, alterErr => {
+              if (alterErr) throw alterErr;
+              console.log(`  ✓ Column '${table}.${column}' ready`);
+              done(true);
+            });
+          });
+        };
+
+        ensureColumn("activities", "audience", "VARCHAR(50) NOT NULL DEFAULT 'bem,igm'", audienceAdded => {
+          ensureColumn("activity_attendance", "member_type", "VARCHAR(20) NOT NULL DEFAULT 'bem'", memberTypeAdded => {
+            const backfillMemberTypes = () => connection.query(
+              `UPDATE activity_attendance aa
+               JOIN activities a ON a.id = aa.activity_id
+               JOIN igm_members im ON im.user_id = aa.user_id
+                 AND (a.period_id IS NULL OR im.period_id = a.period_id)
+               SET aa.member_type = 'igm'
+               WHERE aa.member_type = 'bem'`,
+              backfillErr => {
+                if (backfillErr) throw backfillErr;
+                seedDefaultData();
+              }
+            );
+
+            if (!audienceAdded && !memberTypeAdded) { seedDefaultData(); return; }
+            if (!audienceAdded) { backfillMemberTypes(); return; }
+            connection.query("UPDATE activities SET audience = 'bem,igm'", audienceErr => {
+              if (audienceErr) throw audienceErr;
+              if (memberTypeAdded) { backfillMemberTypes(); return; }
+              seedDefaultData();
+            });
+          });
         });
       };
 
@@ -653,6 +694,32 @@ console.log("  ✓ Default users seeded");
               );
             }
             console.log("  ✓ User periods seeded");
+          }
+
+          const activePeriods = await query("SELECT id FROM periods WHERE is_active = TRUE LIMIT 1");
+          const activePeriodId = activePeriods[0]?.id;
+          if (activePeriodId) {
+            await query("UPDATE activities SET period_id = ? WHERE period_id IS NULL AND end_datetime >= NOW()", [activePeriodId]);
+            await query(
+              `INSERT IGNORE INTO activity_attendance (activity_id, user_id, member_type, status)
+               SELECT a.id, im.user_id, 'igm', 'tidak_hadir'
+               FROM activities a
+               JOIN igm_members im ON im.period_id = a.period_id AND im.is_active = TRUE
+               WHERE FIND_IN_SET('igm', a.audience) > 0 AND a.end_datetime >= NOW()`
+            );
+            await query(
+              `INSERT IGNORE INTO activity_attendance (activity_id, user_id, member_type, status)
+               SELECT a.id, up.user_id, 'bem', 'tidak_hadir'
+               FROM activities a
+               JOIN user_periods up ON up.period_id = a.period_id AND up.is_active = TRUE
+               WHERE (FIND_IN_SET('bem', a.audience) > 0
+                 OR (FIND_IN_SET('sekretaris', a.audience) > 0 AND LOWER(up.jabatan) = 'sekretaris menteri'))
+                 AND a.end_datetime >= NOW()
+                 AND NOT (FIND_IN_SET('igm', a.audience) > 0 AND EXISTS (
+                   SELECT 1 FROM igm_members im
+                   WHERE im.user_id = up.user_id AND im.period_id = up.period_id AND im.is_active = TRUE
+                 ))`
+            );
           }
 
           // ─────────────────────────────────────────────────────────────────

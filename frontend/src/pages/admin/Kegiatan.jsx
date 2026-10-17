@@ -77,6 +77,11 @@ const formatDateTime = (dtStr) => {
   return { tgl, jam };
 };
 
+const AUDIENCE_LABELS = { bem: "Anggota BEM", igm: "Anggota IGM", sekretaris: "Sekretaris Menteri" };
+const parseAudience = (audience) => (Array.isArray(audience) ? audience : String(audience || "bem").split(","))
+  .filter((group) => Object.hasOwn(AUDIENCE_LABELS, group));
+const formatAudience = (audience) => parseAudience(audience).map((group) => AUDIENCE_LABELS[group]).join(" + ") || "Anggota BEM";
+
 
 
 // FIX: getStatus sekarang pakai .replace(" ", "T") agar parsing datetime konsisten
@@ -161,7 +166,6 @@ export default function ManajemenKegiatan() {
   const canViewAttendance = hasPermission("activities.view_attendance");
   const canExportReports = hasPermission("reports.export");
   const [kegiatanList, setKegiatanList] = useState([]);
-  const [memberList, setMemberList] = useState([]);
   const [activeFilter, setActiveFilter] = useState("semua");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -179,7 +183,7 @@ export default function ManajemenKegiatan() {
     nama: "", desc: "",
     tglMulai: todayStr, tglSelesai: todayStr,
     jamMulai: "09:00", jamSelesai: "17:00",
-    lokasi: "", radius: 100, lat: -0.9471, lng: 100.4172,
+    lokasi: "", radius: 100, lat: -0.9471, lng: 100.4172, audience: [],
   });
 
   const [coordInput, setCoordInput] = useState({ lat: "-0.947100", lng: "100.417200" });
@@ -215,7 +219,6 @@ export default function ManajemenKegiatan() {
     el.textContent = LEAFLET_OVERRIDE;
     document.head.appendChild(el);
     fetchKegiatan();
-    fetchMembers();
     return () => document.getElementById("kg-override")?.remove();
   }, []);
 
@@ -250,17 +253,6 @@ export default function ManajemenKegiatan() {
   } catch (err) { console.error(err); }
   finally { setLoading(false); }
 };
-
-  // FIX: Ambil SEMUA user aktif tanpa filter role.
-  // Admin dan superadmin adalah user juga, harus masuk sebagai peserta kegiatan.
-  const fetchMembers = async () => {
-    try {
-      const res = await fetch(`${API}/users`);
-      const data = await res.json();
-      // Tidak difilter berdasarkan role — semua akun aktif masuk sebagai peserta
-      setMemberList(Array.isArray(data) ? data : []);
-    } catch (err) { console.error(err); }
-  };
 
   const fetchAttendance = async (id) => {
     try {
@@ -415,6 +407,7 @@ export default function ManajemenKegiatan() {
   // ── Form validation ───────────────────────────────────────────────────────
 
   const isStartLocked = isEditing && (editingStatus === "berlangsung" || editingStatus === "selesai");
+  const isAudienceLocked = isEditing && editingStatus !== "mendatang";
 
   const isStep1Valid = useMemo(() => {
     const namaOk = form.nama.trim().length > 0 && form.nama.trim().length <= 50;
@@ -436,7 +429,20 @@ export default function ManajemenKegiatan() {
     }
     if (!form.tglSelesai) errors.tglSelesai = "Tanggal selesai wajib diisi.";
     if (!form.jamSelesai) errors.jamSelesai = "Jam selesai wajib diisi.";
+    if (form.audience.length === 0) errors.audience = "Pilih minimal satu kelompok peserta.";
     return errors;
+  };
+
+  const toggleAudience = (group) => {
+    setForm((current) => {
+      const selected = new Set(current.audience);
+      if (selected.has(group)) selected.delete(group);
+      else selected.add(group);
+      if (group === "bem" && selected.has("bem")) selected.delete("sekretaris");
+      if (group === "sekretaris" && selected.has("sekretaris")) selected.delete("bem");
+      return { ...current, audience: [...selected] };
+    });
+    setFormErrors((current) => ({ ...current, audience: null }));
   };
 
   const validateStep2 = () => {
@@ -474,7 +480,7 @@ const end   = parseDBDateTime(k.end_datetime);
       tglMulai: toLocalDateString(start), tglSelesai: toLocalDateString(end),
       jamMulai: padTime(start), jamSelesai: padTime(end),
       lokasi: k.location_name, radius: k.radius_meters,
-      lat: latVal, lng: lngVal,
+      lat: latVal, lng: lngVal, audience: parseAudience(k.audience),
     });
     setCoordInput({ lat: latVal.toFixed(6), lng: lngVal.toFixed(6) });
     setCoordError("");
@@ -503,10 +509,9 @@ const end   = parseDBDateTime(k.end_datetime);
       longitude: form.lng,
       radius_meters: form.radius,
       metode: "selfie",
+      audience: form.audience,
       start_datetime: `${form.tglMulai} ${form.jamMulai}`,
       end_datetime:   `${form.tglSelesai} ${form.jamSelesai}`,
-      // FIX: Kirim SEMUA user (termasuk admin & superadmin) sebagai peserta
-      participant_ids: memberList.map((m) => m.id),
     };
 
     try {
@@ -588,7 +593,7 @@ const end   = parseDBDateTime(k.end_datetime);
               setIsEditing(null); setEditingStatus(null); setFormErrors({});
               setGeoQuery(""); setGeoResults([]); setCoordError("");
               const defLat = -0.9471, defLng = 100.4172;
-              setForm({ nama: "", desc: "", tglMulai: todayStr, tglSelesai: todayStr, jamMulai: "09:00", jamSelesai: "17:00", lokasi: "", radius: 100, lat: defLat, lng: defLng });
+              setForm({ nama: "", desc: "", tglMulai: todayStr, tglSelesai: todayStr, jamMulai: "09:00", jamSelesai: "17:00", lokasi: "", radius: 100, lat: defLat, lng: defLng, audience: [] });
               setCoordInput({ lat: defLat.toFixed(6), lng: defLng.toFixed(6) });
               setCurrentStep(1); setShowModal(true);
             }}
@@ -661,6 +666,10 @@ const end   = parseDBDateTime(k.end_datetime);
                             <MapPin size={12} className="text-gray-400" />
                             <span className="text-gray-400">Lokasi</span>
                             <span className="text-gray-600 truncate">{k.location_name}</span>
+                          </div>
+                          <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
+                            <Users size={12} className="text-gray-400" />
+                            <span>{formatAudience(k.audience)}</span>
                           </div>
                         </div>
 
@@ -766,6 +775,35 @@ const end   = parseDBDateTime(k.end_datetime);
                         <span className={`text-xs ${charWarn(charLen(form.desc), 150)}`}>{form.desc.length}/150</span>
                       </div>
                     </div>
+                    <fieldset className="space-y-2">
+                      <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Peserta Kegiatan *</legend>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { value: "bem", label: "Anggota BEM" },
+                          { value: "igm", label: "Anggota IGM" },
+                          { value: "sekretaris", label: "Sekretaris Menteri saja" },
+                        ].map((option) => {
+                          return (
+                            <label key={option.value} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm ${form.audience.includes(option.value) ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-gray-200 text-gray-600"} ${isAudienceLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-emerald-200"}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.audience.includes(option.value)}
+                                disabled={Boolean(isAudienceLocked)}
+                                onChange={() => toggleAudience(option.value)}
+                                className="h-4 w-4 accent-emerald-600"
+                              />
+                              <span>{option.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-gray-400">
+                        Anggota BEM sudah mencakup sekretaris menteri. Memilih Sekretaris Menteri saja otomatis menghapus pilihan Anggota BEM.
+                        Pastikan ada anggota aktif dengan jabatan Sekretaris Menteri pada periode ini.
+                        {isAudienceLocked && " Target peserta terkunci setelah kegiatan dimulai."}
+                      </p>
+                      {formErrors.audience && <p className="text-xs text-red-500">{formErrors.audience}</p>}
+                    </fieldset>
                     {/* Tanggal & Jam */}
                     <div className="grid grid-cols-2 gap-3">
                       {[
@@ -1023,7 +1061,12 @@ const end   = parseDBDateTime(k.end_datetime);
                         </td></tr>
                       ) : filteredAbsensiDrawer.map((a, i) => (
                         <tr key={i} className="hover:bg-gray-50 transition">
-                          <td className="px-5 py-3 font-medium text-gray-700 text-xs">{a.name}</td>
+                          <td className="px-5 py-3 text-xs">
+                            <p className="font-medium text-gray-700">{a.name}</p>
+                            <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${a.member_type === "igm" ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-700"}`}>
+                              {a.member_type === "igm" ? "IGM" : "BEM"}
+                            </span>
+                          </td>
                           <td className="px-5 py-3 text-xs text-gray-400">{a.kementerian || "–"}</td>
                           <td className="px-5 py-3"><StatusBadge status={a.status === "hadir" ? "hadir" : "alfa"} /></td>
                           <td className="px-5 py-3">{renderFotoSelfie(a.selfie_photo)}</td>
@@ -1040,7 +1083,7 @@ const end   = parseDBDateTime(k.end_datetime);
 
                 {drawerTab === "rekap" && (
                   <div className="p-6">
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-3">Ringkasan per Kementerian</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-3">Ringkasan BEM/IGM per Kementerian</div>
                     {rekapKementerian.length === 0 ? (
                       <div className="text-center py-14 text-sm text-gray-400 italic">Belum ada data</div>
                     ) : (
@@ -1048,7 +1091,7 @@ const end   = parseDBDateTime(k.end_datetime);
                         <table className="min-w-full text-xs">
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-100">
-                              {["Kementerian", "Total", "Hadir", "Alfa", "Kehadiran"].map((h) => (
+                              {["Jenis", "Kementerian", "Total", "Hadir", "Alfa", "Kehadiran"].map((h) => (
                                 <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-[10px] text-gray-400">{h}</th>
                               ))}
                             </tr>
@@ -1058,6 +1101,7 @@ const end   = parseDBDateTime(k.end_datetime);
                               const pct = r.total > 0 ? Math.round((r.hadir / r.total) * 100) : 0;
                               return (
                                 <tr key={i} className="hover:bg-gray-50 transition">
+                                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${r.jenis === "IGM" ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-700"}`}>{r.jenis}</span></td>
                                   <td className="px-4 py-3 font-medium text-gray-700">{r.nama}</td>
                                   <td className="px-4 py-3 text-gray-500 tabular-nums">{r.total}</td>
                                   <td className="px-4 py-3"><span className="text-emerald-600 font-semibold tabular-nums">{r.hadir}</span></td>

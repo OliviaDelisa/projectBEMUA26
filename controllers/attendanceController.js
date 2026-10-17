@@ -62,6 +62,7 @@ exports.getHomeData = (req, res) => {
          LEFT JOIN activity_attendance aa ON a.id = aa.activity_id AND aa.user_id = ?
          WHERE a.is_active = TRUE
            AND a.end_datetime >= NOW()
+           AND aa.user_id IS NOT NULL
          ORDER BY a.start_datetime ASC`,
         [user_id],
         (err, activities) => {
@@ -214,6 +215,7 @@ exports.getActivityHistory = (req, res) => {
      LEFT JOIN activity_attendance aa
         ON a.id = aa.activity_id AND aa.user_id = ?
      WHERE a.is_active = TRUE
+       AND aa.user_id IS NOT NULL
        AND (
          a.end_datetime < NOW()
          OR aa.status = 'hadir'
@@ -300,17 +302,26 @@ exports.checkInSecretariat = (req, res) => {
 exports.checkInActivity = (req, res) => {
   const { activity_id, user_id, latitude, longitude, location_name, selfie_photo } = req.body;
 
+  if (!activity_id || !user_id) {
+    return res.status(400).json({ message: "Kegiatan dan anggota wajib diisi" });
+  }
   if (latitude == null || longitude == null) {
     return res.status(400).json({ message: "Data lokasi tidak lengkap" });
   }
 
   db.query(
-    `SELECT * FROM activities WHERE id = ? AND is_active = TRUE AND end_datetime >= NOW()`,
-    [activity_id],
+    `SELECT a.*, aa.user_id AS registered_user_id
+     FROM activities a
+     LEFT JOIN activity_attendance aa ON aa.activity_id = a.id AND aa.user_id = ?
+     WHERE a.id = ? AND a.is_active = TRUE AND a.end_datetime >= NOW()`,
+    [user_id, activity_id],
     (err, activities) => {
       if (err) return res.status(500).json({ message: "Server error" });
       if (activities.length === 0) {
         return res.status(400).json({ message: "Kegiatan tidak ditemukan atau sudah berakhir" });
+      }
+      if (activities[0].registered_user_id == null) {
+        return res.status(403).json({ message: "Anda tidak termasuk peserta kegiatan ini." });
       }
 
       const activity  = activities[0];

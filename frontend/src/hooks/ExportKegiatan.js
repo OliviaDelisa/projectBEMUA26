@@ -91,14 +91,18 @@ export const buildRekapKementerian = (absensiDetail) => {
   const map = {};
   absensiDetail.forEach((a) => {
     const kem = (a.kementerian || "Tidak Diketahui").trim();
-    if (!map[kem]) map[kem] = { hadir: 0, alfa: 0, total: 0 };
-    map[kem].total += 1;
-    if (a.status === "hadir") map[kem].hadir += 1;
-    else map[kem].alfa += 1;
+    const jenis = a.member_type === "igm" ? "IGM" : "BEM";
+    const key = `${jenis}:${kem}`;
+    if (!map[key]) map[key] = { jenis, nama: kem, hadir: 0, alfa: 0, total: 0 };
+    map[key].total += 1;
+    if (a.status === "hadir") map[key].hadir += 1;
+    else map[key].alfa += 1;
   });
   return Object.entries(map)
     .map(([nama, val]) => ({ nama, ...val }))
     .sort((a, b) => {
+      const typeOrder = a.jenis.localeCompare(b.jenis, "id");
+      if (typeOrder) return typeOrder;
       const oa = getKelompokOrder(a.nama), ob = getKelompokOrder(b.nama);
       if (oa !== ob) return oa - ob;
       return a.nama.localeCompare(b.nama, "id");
@@ -135,10 +139,11 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
   const C_NO    = 0;
   const C_NAMA  = 1;
   const C_NIM   = 2;
-  const C_KEM   = 3;
-  const C_JAB   = 4;
-  const C_STAT  = 5;
-  const C_WAKTU = 6;
+  const C_TYPE  = 3;
+  const C_KEM   = 4;
+  const C_JAB   = 5;
+  const C_STAT  = 6;
+  const C_WAKTU = 7;
   const C_LAST  = C_WAKTU;
 
   const set = (r, c, v, s) => {
@@ -190,31 +195,36 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
   set(R_HEAD, C_NO,    "No.",                hFix("center"));
   set(R_HEAD, C_NAMA,  "Nama Lengkap",       hFix("left"));
   set(R_HEAD, C_NIM,   "NIM",                hFix("center"));
+  set(R_HEAD, C_TYPE,  "Jenis Anggota",      hFix("center"));
   set(R_HEAD, C_KEM,   "Kementerian/Divisi", hFix("left"));
   set(R_HEAD, C_JAB,   "Jabatan",            hFix("left"));
   set(R_HEAD, C_STAT,  "Status",             hFix("center"));
   set(R_HEAD, C_WAKTU, "Waktu Absen",        hFix("center"));
 
   // ── Kelompokkan & urutkan: kelompok → jabatan → nama ─────────────────────
-  const kelMap = {};
+  const kelMap = new Map();
   absensi.forEach((a) => {
-    const k = (a.kementerian || "—").trim();
-    if (!kelMap[k]) kelMap[k] = [];
-    kelMap[k].push(a);
+    const kementerian = (a.kementerian || "—").trim();
+    const jenis = a.member_type === "igm" ? "IGM" : "BEM";
+    const key = `${jenis}:${kementerian}`;
+    if (!kelMap.has(key)) kelMap.set(key, { jenis, kementerian, members: [] });
+    kelMap.get(key).members.push(a);
   });
 
-  const sortedKel = Object.keys(kelMap).sort((a, b) => {
-    const oa = getKelompokOrder(a), ob = getKelompokOrder(b);
+  const sortedKel = [...kelMap.values()].sort((a, b) => {
+    const typeOrder = a.jenis.localeCompare(b.jenis, "id");
+    if (typeOrder) return typeOrder;
+    const oa = getKelompokOrder(a.kementerian), ob = getKelompokOrder(b.kementerian);
     if (oa !== ob) return oa - ob;
-    return a.localeCompare(b, "id");
+    return a.kementerian.localeCompare(b.kementerian, "id");
   });
 
-  sortedKel.forEach((kem) => {
-    kelMap[kem].sort((a, b) => {
+  sortedKel.forEach(({ kementerian, members }) => {
+    members.sort((a, b) => {
       const jabA = a.jabatan || a.position || a.role_label || "";
       const jabB = b.jabatan || b.position || b.role_label || "";
-      const oa   = getJabatanOrder(kem, jabA);
-      const ob   = getJabatanOrder(kem, jabB);
+      const oa   = getJabatanOrder(kementerian, jabA);
+      const ob   = getJabatanOrder(kementerian, jabB);
       if (oa !== ob) return oa - ob;
       return (a.name || "").localeCompare(b.name || "", "id");
     });
@@ -224,13 +234,12 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
   let curRow = R_HEAD + 1;
   let noUrut = 1;
 
-  sortedKel.forEach((kem) => {
-    const members = kelMap[kem];
-    const kc      = getKColor(kem);
+  sortedKel.forEach(({ jenis, kementerian, members }) => {
+    const kc = getKColor(kementerian);
 
-    // Sub-header kementerian
+    // Sub-header jenis anggota dan kementerian
     for (let c = 0; c <= C_LAST; c++) {
-      set(curRow, c, c === C_NO ? kem.toUpperCase() : "",
+      set(curRow, c, c === C_NO ? `${jenis} · ${kementerian.toUpperCase()}` : "",
         S({ bold: true, size: 9, bgColor: kc.bg, color: kc.fg,
             align: "left", border: true })
       );
@@ -252,7 +261,8 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
       set(curRow, C_NO,    noUrut,        S({ bgColor: rowBg, align: "center", border: true, size: 10 }));
       set(curRow, C_NAMA,  a.name || "—", td("left"));
       set(curRow, C_NIM,   a.nim  || "—", td("center"));
-      set(curRow, C_KEM,   kem,            td("left"));
+      set(curRow, C_TYPE,  a.member_type === "igm" ? "IGM" : "BEM", td("center"));
+      set(curRow, C_KEM,   kementerian,    td("left"));
       set(curRow, C_JAB,   jabatan,        td("left"));
       set(curRow, C_STAT,  cfg.label,
         S({ bgColor: cfg.bg, color: cfg.fg, align: "center", bold: true, border: true, size: 9 })
@@ -269,7 +279,7 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
   });
 
   // ── Footer: label row + value row, 4 blok rapi ───────────────────────────
-  // Blok 1: col 0-1 | Blok 2: col 2-3 | Blok 3: col 4-5 | Blok 4: col 6
+  // Blok label dan nilai dibentangkan merata pada delapan kolom.
   curRow++;
   const totHadir = absensi.filter((a) => a.status === "hadir").length;
   const totAlfa  = absensi.length - totHadir;
@@ -279,9 +289,9 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
 
   const blok = [
     { cs: 0, ce: 1, label: "Total Peserta", val: absensi.length, labelBg: "FF2D5A3D", valBg: "FF2D5A3D" },
-    { cs: 2, ce: 3, label: "Hadir",          val: totHadir,       labelBg: "FF4A7C59", valBg: "FF4A7C59" },
-    { cs: 4, ce: 5, label: "Tidak Hadir",    val: totAlfa,        labelBg: "FF8B95A1", valBg: "FF8B95A1" },
-    { cs: 6, ce: 6, label: "% Kehadiran",    val: pct,            labelBg: "FF4A6FA5", valBg: "FF4A6FA5" },
+    { cs: 2, ce: 3, label: "Hadir", val: totHadir, labelBg: "FF4A7C59", valBg: "FF4A7C59" },
+    { cs: 4, ce: 5, label: "Tidak Hadir", val: totAlfa, labelBg: "FF8B95A1", valBg: "FF8B95A1" },
+    { cs: 6, ce: 7, label: "% Kehadiran", val: pct, labelBg: "FF4A6FA5", valBg: "FF4A6FA5" },
   ];
 
   blok.forEach(({ cs, ce, label, val, labelBg, valBg }) => {
@@ -302,6 +312,7 @@ function buildSheetDaftar(wb, kegiatan, absensi) {
   ws["!cols"] = [
     { wch: 5  },
     { wch: 26 },
+    { wch: 15 },
     { wch: 15 },
     { wch: 26 },
     { wch: 22 },
@@ -338,16 +349,16 @@ function buildSheetRekap(wb, kegiatan, absensi) {
   set(0, 0, "REKAP PER KEMENTERIAN / DIVISI",
     S({ bold: true, size: 14, color: "FF1A3C29", align: "center" })
   );
-  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } });
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } });
 
   set(1, 0, kegiatan.title,
     S({ italic: true, size: 10, color: "FF6B7280", align: "center" })
   );
-  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
+  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 5 } });
 
   const R_HEAD    = 3;
-  const cols      = ["Kementerian / Divisi", "Total Staf", "Hadir", "Tidak Hadir", "% Kehadiran"];
-  const colAligns = ["left", "center", "center", "center", "center"];
+  const cols      = ["Jenis", "Kementerian / Divisi", "Total Staf", "Hadir", "Tidak Hadir", "% Kehadiran"];
+  const colAligns = ["center", "left", "center", "center", "center", "center"];
   cols.forEach((h, c) => {
     set(R_HEAD, c, h,
       S({ bold: true, bgColor: "FF2D5A3D", color: "FFFFFFFF", align: colAligns[c], border: true, size: 10 })
@@ -358,11 +369,12 @@ function buildSheetRekap(wb, kegiatan, absensi) {
   rekap.forEach((r, i) => {
     const rowBg = i % 2 === 0 ? "FFFFFFFF" : "FFF9FAFB";
     const pct   = r.total > 0 ? `${Math.round((r.hadir / r.total) * 100)}%` : "0%";
-    set(R_HEAD + 1 + i, 0, r.nama,  S({ bgColor: rowBg, border: true, size: 10 }));
-    set(R_HEAD + 1 + i, 1, r.total, S({ bgColor: rowBg, align: "center", border: true, size: 10 }));
-    set(R_HEAD + 1 + i, 2, r.hadir, S({ bgColor: "FFD1FAE5", color: "FF065F46", align: "center", bold: true, border: true, size: 10 }));
-    set(R_HEAD + 1 + i, 3, r.alfa,  S({ bgColor: "FFFEF9C3", color: "FF92400E", align: "center", bold: true, border: true, size: 10 }));
-    set(R_HEAD + 1 + i, 4, pct,     S({ bgColor: "FFE0EAFB", color: "FF1D4ED8", align: "center", bold: true, border: true, size: 10 }));
+    set(R_HEAD + 1 + i, 0, r.jenis, S({ bgColor: rowBg, align: "center", border: true, size: 10 }));
+    set(R_HEAD + 1 + i, 1, r.nama,  S({ bgColor: rowBg, border: true, size: 10 }));
+    set(R_HEAD + 1 + i, 2, r.total, S({ bgColor: rowBg, align: "center", border: true, size: 10 }));
+    set(R_HEAD + 1 + i, 3, r.hadir, S({ bgColor: "FFD1FAE5", color: "FF065F46", align: "center", bold: true, border: true, size: 10 }));
+    set(R_HEAD + 1 + i, 4, r.alfa,  S({ bgColor: "FFFEF9C3", color: "FF92400E", align: "center", bold: true, border: true, size: 10 }));
+    set(R_HEAD + 1 + i, 5, pct,     S({ bgColor: "FFE0EAFB", color: "FF1D4ED8", align: "center", bold: true, border: true, size: 10 }));
   });
 
   const footRow = R_HEAD + 1 + rekap.length;
@@ -371,12 +383,13 @@ function buildSheetRekap(wb, kegiatan, absensi) {
   const pctTot  = absensi.length > 0 ? `${Math.round((totH / absensi.length) * 100)}%` : "0%";
 
   set(footRow, 0, "TOTAL",        S({ bold: true, bgColor: "FF2D5A3D", color: "FFFFFFFF", border: true, size: 10 }));
-  set(footRow, 1, absensi.length, S({ bold: true, bgColor: "FF2D5A3D", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
-  set(footRow, 2, totH,           S({ bold: true, bgColor: "FF3A6B4A", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
-  set(footRow, 3, totA,           S({ bold: true, bgColor: "FF8B95A1", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
-  set(footRow, 4, pctTot,         S({ bold: true, bgColor: "FF4A6FA5", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
+  set(footRow, 1, "Semua",        S({ bold: true, bgColor: "FF2D5A3D", color: "FFFFFFFF", border: true, size: 10 }));
+  set(footRow, 2, absensi.length, S({ bold: true, bgColor: "FF2D5A3D", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
+  set(footRow, 3, totH,           S({ bold: true, bgColor: "FF3A6B4A", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
+  set(footRow, 4, totA,           S({ bold: true, bgColor: "FF8B95A1", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
+  set(footRow, 5, pctTot,         S({ bold: true, bgColor: "FF4A6FA5", color: "FFFFFFFF", align: "center", border: true, size: 10 }));
 
-  ws["!cols"]   = [{ wch: 32 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 13 }];
+  ws["!cols"]   = [{ wch: 12 }, { wch: 32 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 13 }];
   ws["!rows"]   = [{ hpt: 26 }, { hpt: 16 }, { hpt: 6 }, { hpt: 36 }];
   ws["!merges"] = merges;
   ws["!ref"]    = XLSXStyle.utils.encode_range(range);
