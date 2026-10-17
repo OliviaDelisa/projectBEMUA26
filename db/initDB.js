@@ -150,7 +150,8 @@ connection.connect(async (err) => {
           end_datetime   DATETIME      NOT NULL,
           kode_qr        VARCHAR(50)   UNIQUE DEFAULT NULL,
           metode         ENUM('qr','maps','keduanya') DEFAULT 'keduanya',
-          audience       VARCHAR(50)   NOT NULL DEFAULT 'bem,igm',
+          audience       VARCHAR(50)   NOT NULL DEFAULT 'bem',
+          audience_explicit BOOLEAN    NOT NULL DEFAULT FALSE,
           period_id      INT           DEFAULT NULL,
           created_by     INT           DEFAULT NULL,
           is_active      BOOLEAN       DEFAULT TRUE,
@@ -401,27 +402,50 @@ const createAspirasiTable = `
           });
         };
 
-        ensureColumn("activities", "audience", "VARCHAR(50) NOT NULL DEFAULT 'bem,igm'", audienceAdded => {
+        ensureColumn("activities", "audience", "VARCHAR(50) NOT NULL DEFAULT 'bem'", audienceAdded => {
           ensureColumn("activity_attendance", "member_type", "VARCHAR(20) NOT NULL DEFAULT 'bem'", memberTypeAdded => {
-            const backfillMemberTypes = () => connection.query(
-              `UPDATE activity_attendance aa
-               JOIN activities a ON a.id = aa.activity_id
-               JOIN igm_members im ON im.user_id = aa.user_id
-                 AND (a.period_id IS NULL OR im.period_id = a.period_id)
-               SET aa.member_type = 'igm'
-               WHERE aa.member_type = 'bem'`,
-              backfillErr => {
-                if (backfillErr) throw backfillErr;
-                seedDefaultData();
-              }
-            );
+            ensureColumn("activities", "audience_explicit", "BOOLEAN NOT NULL DEFAULT FALSE", explicitAdded => {
+              if (!audienceAdded && !memberTypeAdded && !explicitAdded) { seedDefaultData(); return; }
 
-            if (!audienceAdded && !memberTypeAdded) { seedDefaultData(); return; }
-            if (!audienceAdded) { backfillMemberTypes(); return; }
-            connection.query("UPDATE activities SET audience = 'bem,igm'", audienceErr => {
-              if (audienceErr) throw audienceErr;
-              if (memberTypeAdded) { backfillMemberTypes(); return; }
-              seedDefaultData();
+              const finishMigration = () => {
+                if (!memberTypeAdded) { seedDefaultData(); return; }
+                connection.query(
+                  `UPDATE activity_attendance aa
+                   JOIN activities a ON a.id = aa.activity_id
+                   JOIN igm_members im ON im.user_id = aa.user_id
+                     AND (a.period_id IS NULL OR im.period_id = a.period_id)
+                   SET aa.member_type = 'igm'
+                   WHERE aa.member_type = 'bem'`,
+                  backfillErr => {
+                    if (backfillErr) throw backfillErr;
+                    seedDefaultData();
+                  }
+                );
+              };
+
+              connection.query(
+                `DELETE aa FROM activity_attendance aa
+                 JOIN activities a ON a.id = aa.activity_id
+                 WHERE a.audience_explicit = FALSE AND a.audience = 'bem,igm'
+                   AND aa.member_type = 'igm'
+                   AND aa.check_in_time IS NULL`,
+                deleteErr => {
+                  if (deleteErr) throw deleteErr;
+                  connection.query(
+                    "UPDATE activities SET audience = 'bem', audience_explicit = TRUE WHERE audience_explicit = FALSE AND audience = 'bem,igm'",
+                    updateErr => {
+                      if (updateErr) throw updateErr;
+                      connection.query(
+                        "UPDATE activities SET audience_explicit = TRUE WHERE audience_explicit = FALSE AND audience <> 'bem,igm'",
+                        markErr => {
+                          if (markErr) throw markErr;
+                          finishMigration();
+                        }
+                      );
+                    }
+                  );
+                }
+              );
             });
           });
         });

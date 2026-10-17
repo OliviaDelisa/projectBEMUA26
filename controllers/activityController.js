@@ -160,8 +160,8 @@ exports.createActivity = (req, res) => {
             const kode_qr = "KEG-" + crypto.randomBytes(2).toString("hex").toUpperCase();
             const query = `
                 INSERT INTO activities
-                    (title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, kode_qr, metode, audience, period_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                    (title, description, location_name, latitude, longitude, radius_meters, start_datetime, end_datetime, kode_qr, metode, audience, audience_explicit, period_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?)`;
             const values = [
                 title.trim(), description ? description.trim() : "", location_name.trim(),
                 latitude, longitude, radius_meters || 100, start_datetime, end_datetime,
@@ -318,7 +318,7 @@ exports.updateActivity = async (req, res) => {
         await connection.query(
             `UPDATE activities SET title = ?, description = ?, location_name = ?,
              latitude = ?, longitude = ?, radius_meters = ?, start_datetime = ?, end_datetime = ?,
-             audience = ?, period_id = ? WHERE id = ?`,
+             audience = ?, audience_explicit = TRUE, period_id = ? WHERE id = ?`,
             [title.trim(), description ? description.trim() : "", location_name.trim(), latitude,
                 longitude, radius_meters || 100, start_datetime, end_datetime,
                 selectedAudience.join(","), periodId, id]
