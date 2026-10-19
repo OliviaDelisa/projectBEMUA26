@@ -13,28 +13,33 @@ const kementerianIGM = [
   "Mitra Event dan Bisnis", "Audit Internal", "Keuangan",
 ];
 
-const fakultasUnand = [
-  "Fakultas Pertanian",
-  "Fakultas Kedokteran",
-  "Fakultas Matematika dan Ilmu Pengetahuan Alam",
-  "Fakultas Hukum",
-  "Fakultas Ekonomi dan Bisnis",
-  "Fakultas Peternakan",
-  "Fakultas Ilmu Budaya",
-  "Fakultas Teknik",
-  "Fakultas Ilmu Sosial dan Ilmu Politik",
-  "Fakultas Farmasi",
-  "Fakultas Teknologi Pertanian",
-  "Fakultas Keperawatan",
-  "Fakultas Kesehatan Masyarakat",
-  "Fakultas Kedokteran Gigi",
-  "Fakultas Teknologi Informasi",
-];
-
-const initialForm = {
-  name: "", nim: "", username: "", password: "", fakultas: "", kementerian: "", period_id: "", is_active: true,
+const jurusanByFakultas = {
+  "Fakultas Pertanian": ["Agroteknologi", "Agribisnis", "Ilmu Tanah", "Proteksi Tanaman", "Penyuluhan Pertanian", "Agroekoteknologi (Kampus III)"],
+  "Fakultas Kedokteran": ["Kedokteran", "Psikologi", "Kebidanan", "Ilmu Biomedis"],
+  "Fakultas Matematika dan Ilmu Pengetahuan Alam": ["Kimia", "Biologi", "Matematika", "Fisika", "Statistika dan Sains Data"],
+  "Fakultas Hukum": ["Hukum"],
+  "Fakultas Ekonomi dan Bisnis": [
+    "Ekonomi", "Manajemen", "Akuntansi", "Ekonomi Islam", "Kewirausahaan",
+    "Ekonomi Pembangunan (Kampus II)", "Manajemen (Kampus II)",
+    "Administrasi Perkantoran (D3)", "Akuntansi (D3)", "Perbankan dan Keuangan (D3)", "Manajemen Pemasaran (D3)",
+  ],
+  "Fakultas Peternakan": ["Peternakan", "Peternakan (Kampus II)", "Nutrisi dan Teknologi Pakan Ternak"],
+  "Fakultas Ilmu Budaya": ["Sejarah", "Sastra Indonesia", "Sastra Inggris", "Sastra Minangkabau", "Sastra Jepang", "Arkeologi"],
+  "Fakultas Teknik": ["Teknik Sipil", "Teknik Mesin", "Teknik Industri", "Teknik Elektro", "Teknik Lingkungan", "Arsitektur"],
+  "Fakultas Ilmu Sosial dan Ilmu Politik": ["Sosiologi", "Ilmu Politik", "Antropologi Sosial", "Hubungan Internasional", "Ilmu Komunikasi", "Administrasi Publik"],
+  "Fakultas Farmasi": ["Farmasi"],
+  "Fakultas Teknologi Pertanian": ["Teknologi Pangan dan Hasil Pertanian", "Teknik Pertanian dan Biosistem", "Teknologi Industri Pertanian"],
+  "Fakultas Keperawatan": ["Keperawatan"],
+  "Fakultas Kesehatan Masyarakat": ["Kesehatan Masyarakat", "Gizi"],
+  "Fakultas Kedokteran Gigi": ["Kedokteran Gigi"],
+  "Fakultas Teknologi Informasi": ["Teknik Komputer", "Sistem Informasi", "Informatika"],
 };
 
+const fakultasUnand = Object.keys(jurusanByFakultas);
+
+const initialForm = {
+  name: "", nim: "", username: "", password: "", fakultas: "", jurusan: "", kementerian: "", period_id: "", is_active: true,
+};
 export default function AkunIGM() {
   const [members, setMembers] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -131,6 +136,12 @@ export default function AkunIGM() {
       password: `bem${nim}`,
     }));
   };
+
+  const handleFakultasChange = value => {
+  setForm(prev => ({ ...prev, fakultas: value, jurusan: "" }));
+};
+
+const jurusanOptions = jurusanByFakultas[form.fakultas] ?? [];
 
   const handleSave = async event => {
     event.preventDefault();
@@ -305,15 +316,21 @@ export default function AkunIGM() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-700">Fakultas</label>
-                    <select required value={form.fakultas} onChange={event => setField("fakultas", event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white p-3 text-sm outline-none focus:border-green-500">
-                      <option value="">Pilih fakultas</option>
-                      {fakultasUnand.map(fakultas => <option key={fakultas} value={fakultas}>{fakultas}</option>)}
-                    </select>
-                  </div>
-                  <div className="hidden sm:block" />
-                </div>
+  <div>
+    <label className="mb-1 block text-sm font-semibold text-gray-700">Fakultas</label>
+    <select required value={form.fakultas} onChange={event => handleFakultasChange(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white p-3 text-sm outline-none focus:border-green-500">
+      <option value="">Pilih fakultas</option>
+      {fakultasUnand.map(fakultas => <option key={fakultas} value={fakultas}>{fakultas}</option>)}
+    </select>
+  </div>
+  <div>
+    <label className="mb-1 block text-sm font-semibold text-gray-700">Jurusan</label>
+    <select required={!editId} disabled={!form.fakultas} value={form.jurusan} onChange={event => setField("jurusan", event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white p-3 text-sm outline-none focus:border-green-500 disabled:bg-gray-100">
+      <option value="">{form.fakultas ? "Pilih jurusan" : "Pilih fakultas dulu"}</option>
+      {jurusanOptions.map(jurusan => <option key={jurusan} value={jurusan}>{jurusan}</option>)}
+    </select>
+  </div>
+</div>
                 {!editId && (
                   <div>
                     <label className="mb-1 block text-sm font-semibold text-gray-700">Password awal</label>
@@ -413,23 +430,26 @@ export default function AkunIGM() {
                 </div>
                 {copyMessage && <div className="border-b border-green-100 bg-green-50 px-4 py-2 text-xs font-medium text-green-700">{copyMessage}</div>}
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[720px] text-left">
+                  <table className="w-full min-w-[860px] text-left">
                     <thead className="bg-gray-50 text-xs font-bold uppercase text-gray-500">
-                      <tr><th className="p-4">Nama</th><th className="p-4">NIM</th><th className="p-4">Fakultas</th><th className="p-4">Kementerian</th><th className="p-4 text-center">Aksi</th></tr>
+                      <tr><th className="p-4">Nama</th><th className="p-4">NIM</th><th className="p-4">Fakultas</th><th className="p-4">Jurusan</th><th className="p-4">Kementerian</th><th className="p-4 text-center">Aksi</th></tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-sm">
-                      {loading ? <tr><td colSpan="5" className="p-10 text-center text-gray-400">Memuat data...</td></tr> : filteredMembers.length ? filteredMembers.map(member => (
+                      {loading ? <tr><td colSpan="6" className="p-10 text-center text-gray-400">Memuat data...</td></tr> : filteredMembers.length ? filteredMembers.map(member => (
                         <tr key={member.id} className="hover:bg-gray-50/70">
                           <td className="p-4 font-semibold text-gray-800">{member.name}</td>
                           <td className="p-4 font-mono text-gray-500">{member.nim}</td>
                           <td className="p-4 text-gray-600">{member.fakultas || "-"}</td>
+                          <td className="p-4 text-gray-600">
+                          {member.jurusan || <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-600">Belum diisi</span>}
+                          </td>
                           <td className="p-4 text-gray-600">{member.kementerian}</td>
                           <td className="p-4"><div className="flex justify-center gap-2">
                             <button type="button" onClick={() => openEdit(member)} title="Edit anggota" className="rounded-md border border-gray-200 p-2 text-gray-500 hover:border-green-400 hover:text-green-700"><Pencil className="h-4 w-4" /></button>
                             <button type="button" onClick={() => openResetModal(member)} title="Reset password" className="rounded-md border border-gray-200 p-2 text-gray-500 hover:border-amber-400 hover:text-amber-700"><KeyRound className="h-4 w-4" /></button>
                           </div></td>
                         </tr>
-                      )) : <tr><td colSpan="5" className="p-10 text-center text-gray-400">Belum ada anggota IGM pada periode ini</td></tr>}
+                      )) : <tr><td colSpan="6" className="p-10 text-center text-gray-400">Belum ada anggota IGM pada periode ini</td></tr>}
                     </tbody>
                   </table>
                 </div>

@@ -31,6 +31,7 @@ connection.connect(async (err) => {
           name                 VARCHAR(100) NOT NULL,
           nim                  VARCHAR(10)  UNIQUE NOT NULL,
           fakultas             VARCHAR(100) DEFAULT NULL,
+          jurusan              VARCHAR(100) DEFAULT NULL,
           username             VARCHAR(50)  UNIQUE NOT NULL,
           password             VARCHAR(255) NOT NULL,
           photo                VARCHAR(255) DEFAULT 'default.png',
@@ -348,6 +349,7 @@ const createAspirasiTable = `
           const existingColumns = new Set(columns.map(column => column.Field));
           const missingColumns = [
             ["fakultas", "ALTER TABLE users ADD COLUMN fakultas VARCHAR(100) DEFAULT NULL"],
+            ["jurusan",  "ALTER TABLE users ADD COLUMN jurusan VARCHAR(100) DEFAULT NULL AFTER fakultas"],
           ].filter(([column]) => !existingColumns.has(column));
 
           const addNextColumn = (index) => {

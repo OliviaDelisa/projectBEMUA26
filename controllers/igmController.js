@@ -5,7 +5,7 @@ exports.getMembers = (req, res) => {
   const { period_id } = req.query;
   const params = [];
   let sql = `
-    SELECT im.id, u.id AS user_id, u.name, u.nim, u.username, u.fakultas,
+    SELECT im.id, u.id AS user_id, u.name, u.nim, u.username, u.fakultas, u.jurusan,
            im.kementerian, im.is_active, im.period_id, p.name AS period_name
     FROM igm_members im
     JOIN users u ON u.id = im.user_id
@@ -24,10 +24,10 @@ exports.getMembers = (req, res) => {
 };
 
 exports.createMember = async (req, res) => {
-  const { name, nim, fakultas, kementerian, period_id } = req.body;
-  if (!name || !nim || !fakultas || !kementerian || !period_id) {
-    return res.status(400).json({ message: "Nama, NIM, fakultas, kementerian, dan periode wajib diisi" });
-  }
+  const { name, nim, fakultas, jurusan, kementerian, period_id } = req.body;
+if (!name || !nim || !fakultas || !jurusan || !kementerian || !period_id) {
+  return res.status(400).json({ message: "Nama, NIM, fakultas, jurusan, kementerian, dan periode wajib diisi" });
+}
 
   let connection;
   let accountReused = false;
@@ -61,17 +61,18 @@ exports.createMember = async (req, res) => {
         return res.status(409).json({ message: "Anggota sudah terdaftar pada periode ini" });
       }
       await connection.query(
-        `UPDATE users SET name = ?, fakultas = ?, updated_at = NOW() WHERE id = ?`,
-        [name, fakultas, userId]
-      );
+  `UPDATE users SET name = ?, fakultas = ?, jurusan = ?, updated_at = NOW() WHERE id = ?`,
+  [name, fakultas, jurusan, userId]
+);
+    
     } else {
       const password = `bem${username}`;
       const hashedPassword = await bcrypt.hash(password, 10);
       const [userResult] = await connection.query(
-        `INSERT INTO users (name, nim, fakultas, username, password, must_change_password)
-         VALUES (?, ?, ?, ?, ?, TRUE)`,
-        [name, nim, fakultas, username, hashedPassword]
-      );
+  `INSERT INTO users (name, nim, fakultas, jurusan, username, password, must_change_password)
+   VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+  [name, nim, fakultas, jurusan, username, hashedPassword]
+);
       userId = userResult.insertId;
     }
 
@@ -95,17 +96,17 @@ exports.createMember = async (req, res) => {
 
 exports.updateMember = async (req, res) => {
   const { id } = req.params;
-  const { name, nim, fakultas, kementerian, is_active } = req.body;
-  if (!name || !nim || !fakultas || !kementerian) {
-    return res.status(400).json({ message: "Nama, NIM, fakultas, dan kementerian wajib diisi" });
-  }
+  const { name, nim, fakultas, jurusan, kementerian, is_active } = req.body;
+if (!name || !nim || !fakultas || !kementerian) {
+  return res.status(400).json({ message: "Nama, NIM, fakultas, dan kementerian wajib diisi" });
+}
 
   try {
     const [rows] = await db.promise().query("SELECT user_id FROM igm_members WHERE id = ?", [id]);
     if (rows.length === 0) return res.status(404).json({ message: "Anggota IGM tidak ditemukan" });
     await db.promise().query(
-      "UPDATE users SET name = ?, nim = ?, fakultas = ?, username = ?, updated_at = NOW() WHERE id = ?",
-      [name, nim, fakultas, String(nim).trim(), rows[0].user_id]
+      "UPDATE users SET name = ?, nim = ?, fakultas = ?, jurusan = ?, username = ?, updated_at = NOW() WHERE id = ?",
+       [name, nim, fakultas, jurusan || null, String(nim).trim(), rows[0].user_id]
     );
     await db.promise().query(
       `UPDATE igm_members
