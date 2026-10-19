@@ -103,9 +103,11 @@ exports.getSecretariatHistory = (req, res) => {
 
   // ✅ Ambil start_date periode aktif dulu
   db.query(
-    `SELECT start_date FROM periods WHERE is_active = TRUE LIMIT 1`,
-    [],
-    (err, periods) => {
+  `SELECT
+     (SELECT start_date FROM periods WHERE is_active = TRUE LIMIT 1) AS start_date,
+     (SELECT MIN(created_at) FROM igm_members WHERE user_id = ?) AS igm_joined`,
+  [parseInt(user_id)],
+  (err, periods) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
       db.query(
@@ -133,6 +135,15 @@ exports.getSecretariatHistory = (req, res) => {
             // Tidak ada periode aktif → mulai hari ini saja (0 tidak hadir)
             startDate = new Date(today);
           }
+
+          const joined = periods[0] && periods[0].igm_joined;
+if (joined) {
+  const joinedStr = joined instanceof Date
+    ? getLocalDateString(joined)
+    : String(joined).slice(0, 10);
+  const joinedDate = new Date(joinedStr + 'T00:00:00+07:00');
+  if (joinedDate > startDate) startDate = joinedDate;
+}
 
           const todayStr = getLocalDateString(today);
           const hadirSet = new Set(result.map(r => {
