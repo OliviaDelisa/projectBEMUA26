@@ -105,8 +105,13 @@ exports.getSecretariatHistory = (req, res) => {
   db.query(
   `SELECT
      (SELECT start_date FROM periods WHERE is_active = TRUE LIMIT 1) AS start_date,
-     (SELECT MIN(created_at) FROM igm_members WHERE user_id = ?) AS igm_joined`,
-  [parseInt(user_id)],
+     (SELECT MIN(created_at) FROM (
+        SELECT created_at FROM igm_members WHERE user_id = ?
+        UNION ALL
+        SELECT created_at FROM user_periods WHERE user_id = ?
+      ) t) AS joined_at,
+     (SELECT COUNT(*) FROM igm_members WHERE user_id = ?) AS is_igm`,
+  [parseInt(user_id), parseInt(user_id), parseInt(user_id)],
   (err, periods) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
@@ -144,7 +149,11 @@ if (joined) {
   const joinedDate = new Date(joinedStr + 'T00:00:00+07:00');
   if (joinedDate > startDate) startDate = joinedDate;
 }
-
+// Magang: jangan hitung sebelum tanggal absensi IGM mulai berlaku
+if (result.length === 0 && periods[0] && periods[0].is_igm > 0) {
+  const igmStart = new Date(IGM_MULAI_ABSENSI + 'T00:00:00+07:00');
+  if (igmStart > startDate) startDate = igmStart;
+}
           const todayStr = getLocalDateString(today);
           const hadirSet = new Set(result.map(r => {
             return r.date instanceof Date
