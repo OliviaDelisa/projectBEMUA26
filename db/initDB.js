@@ -236,7 +236,10 @@ const createAspirasiTable = `
   CREATE TABLE IF NOT EXISTS aspirasi (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
+    kode_laporan VARCHAR(20) NOT NULL UNIQUE,
+
     nama VARCHAR(100) DEFAULT NULL,
+    no_hp VARCHAR(20) DEFAULT NULL,
     fakultas VARCHAR(100) NOT NULL,
 
     kategori_id INT NOT NULL,
@@ -258,6 +261,7 @@ const createAspirasiTable = `
     ) DEFAULT 'normal',
 
     catatan_internal TEXT NULL,
+    keterangan_tindak_lanjut TEXT NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -407,10 +411,10 @@ const createAspirasiTable = `
         ensureColumn("activities", "audience", "VARCHAR(50) NOT NULL DEFAULT 'bem'", audienceAdded => {
           ensureColumn("activity_attendance", "member_type", "VARCHAR(20) NOT NULL DEFAULT 'bem'", memberTypeAdded => {
             ensureColumn("activities", "audience_explicit", "BOOLEAN NOT NULL DEFAULT FALSE", explicitAdded => {
-              if (!audienceAdded && !memberTypeAdded && !explicitAdded) { seedDefaultData(); return; }
+              if (!audienceAdded && !memberTypeAdded && !explicitAdded) { migrateAspirasiColumns(); return; }
 
               const finishMigration = () => {
-                if (!memberTypeAdded) { seedDefaultData(); return; }
+                if (!memberTypeAdded) { migrateAspirasiColumns(); return; }
                 connection.query(
                   `UPDATE activity_attendance aa
                    JOIN activities a ON a.id = aa.activity_id
@@ -420,7 +424,7 @@ const createAspirasiTable = `
                    WHERE aa.member_type = 'bem'`,
                   backfillErr => {
                     if (backfillErr) throw backfillErr;
-                    seedDefaultData();
+                    migrateAspirasiColumns();
                   }
                 );
               };
@@ -452,6 +456,75 @@ const createAspirasiTable = `
           });
         });
       };
+      // ─────────────────────────────────────────────────────────────────────
+      // MIGRATE ASPIRASI TABLE (add new columns for existing DB)
+      // ─────────────────────────────────────────────────────────────────────
+
+      const migrateAspirasiColumns = () => {
+        connection.query("SHOW COLUMNS FROM aspirasi", (err, columns) => {
+          if (err) { seedDefaultData(); return; }
+          const existingCols = new Set(columns.map(c => c.Field));
+          const migrations = [
+            ["kode_laporan",             "ALTER TABLE aspirasi ADD COLUMN kode_laporan VARCHAR(20) DEFAULT NULL AFTER id"],
+            ["no_hp",                    "ALTER TABLE aspirasi ADD COLUMN no_hp VARCHAR(20) DEFAULT NULL AFTER nama"],
+            ["keterangan_tindak_lanjut", "ALTER TABLE aspirasi ADD COLUMN keterangan_tindak_lanjut TEXT NULL AFTER catatan_internal"],
+          ].filter(([col]) => !existingCols.has(col));
+
+          const runNext = (idx) => {
+            if (idx >= migrations.length) { backfillKodeLaporan(); return; }
+            connection.query(migrations[idx][1], (alterErr) => {
+              if (alterErr) console.warn("  ⚠  Failed to add aspirasi." + migrations[idx][0] + ":", alterErr.message);
+              else console.log("  ✓ Column 'aspirasi." + migrations[idx][0] + "' added");
+              runNext(idx + 1);
+            });
+          };
+          runNext(0);
+        });
+      };
+
+      const backfillKodeLaporan = () => {
+        connection.query(
+          "SELECT id FROM aspirasi WHERE kode_laporan IS NULL OR kode_laporan = ''",
+          (err, rows) => {
+            if (err || !rows || rows.length === 0) { ensureKodeLaporanConstraints(); return; }
+            let done = 0;
+            const genKode = () => {
+              const now = new Date();
+              const pad = (n) => String(n).padStart(2, "0");
+              const ds = now.getFullYear() + "" + pad(now.getMonth() + 1) + pad(now.getDate());
+              const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+              let r = "";
+              for (let i = 0; i < 4; i++) r += chars.charAt(Math.floor(Math.random() * chars.length));
+              return "ASP-" + ds + "-" + r;
+            };
+            rows.forEach((row) => {
+              connection.query("UPDATE aspirasi SET kode_laporan = ? WHERE id = ?", [genKode(), row.id], () => {
+                done++;
+                if (done === rows.length) {
+                  console.log("  ✓ Backfilled kode_laporan for " + rows.length + " existing aspirasi");
+                  ensureKodeLaporanConstraints();
+                }
+              });
+            });
+          }
+        );
+      };
+
+      const ensureKodeLaporanConstraints = () => {
+        connection.query("SHOW INDEX FROM aspirasi WHERE Key_name = 'kode_laporan'", (err, indexes) => {
+          if (err) { seedDefaultData(); return; }
+          if (indexes && indexes.length > 0) { seedDefaultData(); return; }
+          connection.query(
+            "ALTER TABLE aspirasi MODIFY kode_laporan VARCHAR(20) NOT NULL, ADD UNIQUE KEY kode_laporan (kode_laporan)",
+            (alterErr) => {
+              if (alterErr) console.warn("  ⚠  Could not enforce UNIQUE on kode_laporan:", alterErr.message);
+              else console.log("  ✓ kode_laporan constraint enforced");
+              seedDefaultData();
+            }
+          );
+        });
+      };
+
 
       // ─────────────────────────────────────────────────────────────────────
       // SEED DEFAULT DATA

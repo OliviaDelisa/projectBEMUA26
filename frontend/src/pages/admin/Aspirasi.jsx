@@ -54,6 +54,10 @@ const parseFotos = (foto) => {
   }
 };
 
+// Link WhatsApp dari nomor HP (format 08xx / 62xx / +62xx)
+const waLink = (hp) =>
+  hp ? `https://wa.me/${hp.replace(/\D/g, "").replace(/^0/, "62")}` : null;
+
 const buildBarOptions = (katUnik) => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -136,7 +140,13 @@ export default function Aspirasi() {
   const [savingNote, setSavingNote] = useState(false);
   const [noteOk,     setNoteOk]     = useState(false);
 
-  // lightbox sekarang menyimpan { images: [...namafile], index: number } atau null
+  // keterangan tindak lanjut (tampil ke pelapor lewat web profile)
+  const [keterangan, setKeterangan] = useState("");
+  const [savingKet,  setSavingKet]  = useState(false);
+  const [ketOk,      setKetOk]      = useState(false);
+  const [copied,     setCopied]     = useState(false);
+
+  // lightbox menyimpan { images: [...namafile], index: number } atau null
   const [lightbox, setLightbox] = useState(null);
   const openLightbox = (fotos, index = 0) => setLightbox({ images: fotos, index });
 
@@ -259,7 +269,39 @@ export default function Aspirasi() {
     finally { setSavingNote(false); }
   };
 
-  const openModal = (d) => { setSelected(d); setCatatan(d.catatan_internal || ""); setNoteOk(false); };
+  const handleSaveKeterangan = async () => {
+    if (!selected || !canManageAspirasi) return;
+    setSavingKet(true); setKetOk(false);
+    try {
+      const res = await fetch(`${API_BASE}/aspirasi/${selected.id}/keterangan`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ keterangan_tindak_lanjut: keterangan }),
+      });
+      if (!res.ok) throw new Error();
+      setList((p) => p.map((d) => d.id === selected.id ? { ...d, keterangan_tindak_lanjut: keterangan } : d));
+      setSelected((s) => ({ ...s, keterangan_tindak_lanjut: keterangan }));
+      setKetOk(true);
+      setTimeout(() => setKetOk(false), 2500);
+    } catch { alert("Gagal menyimpan keterangan"); }
+    finally { setSavingKet(false); }
+  };
+
+  const copyKode = (kode) => {
+    if (!kode) return;
+    navigator.clipboard?.writeText(kode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const openModal = (d) => {
+    setSelected(d);
+    setCatatan(d.catatan_internal || "");
+    setKeterangan(d.keterangan_tindak_lanjut || "");
+    setNoteOk(false);
+    setKetOk(false);
+    setCopied(false);
+  };
 
   const clearDate = () => { setDateFrom(""); setDateTo(""); };
   const isDateActive = dateFrom || dateTo;
@@ -270,7 +312,12 @@ export default function Aspirasi() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return dateFiltered.filter((d) =>
-      (!q || (d.nama||"").toLowerCase().includes(q) || d.fakultas.toLowerCase().includes(q) || d.isi.toLowerCase().includes(q)) &&
+      (!q
+        || (d.nama||"").toLowerCase().includes(q)
+        || d.fakultas.toLowerCase().includes(q)
+        || d.isi.toLowerCase().includes(q)
+        || (d.kode_laporan||"").toLowerCase().includes(q)
+        || (d.no_hp||"").includes(q)) &&
       (!filterStatus    || d.status        === filterStatus) &&
       (!filterKat       || d.nama_kategori  === filterKat) &&
       (!filterFakultas  || d.fakultas       === filterFakultas) &&
@@ -283,26 +330,29 @@ export default function Aspirasi() {
     if (b.status === "baru" && a.status !== "baru") return 1;
     return new Date(b.created_at) - new Date(a.created_at);
   });
-  
+
   const handleExport = () => {
     if (rows.length === 0) return;
 
     const exportRows = rows.map((item, index) => ({
       No: index + 1,
+      "Kode Laporan": item.kode_laporan || "",
       Tanggal: fmtDateTime(item.created_at),
       Pengirim: item.nama || "Anonim",
+      "No. HP": item.no_hp || "",
       Fakultas: item.fakultas || "",
       Kategori: item.nama_kategori || "",
       Aspirasi: item.isi || "",
       Status: cap(item.status || "baru"),
       Prioritas: cap(item.prioritas || "normal"),
+      "Keterangan Tindak Lanjut": item.keterangan_tindak_lanjut || "",
       "Catatan Internal": item.catatan_internal || "",
       Lampiran: parseFotos(item.foto).join("; "),
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     worksheet["!cols"] = [
-      { wch: 6 }, { wch: 22 }, { wch: 24 }, { wch: 24 }, { wch: 24 },
-      { wch: 60 }, { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 36 },
+      { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 24 }, { wch: 16 }, { wch: 24 }, { wch: 24 },
+      { wch: 60 }, { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 40 }, { wch: 36 },
     ];
 
     const headerRange = XLSX.utils.decode_range(worksheet["!ref"]);
@@ -439,7 +489,7 @@ export default function Aspirasi() {
                   <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
                   <input
                     type="text"
-                    placeholder="Cari nama, fakultas, isi..."
+                    placeholder="Cari kode, nama, fakultas, isi..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-3 py-2 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition"
@@ -514,6 +564,7 @@ export default function Aspirasi() {
                               <td className="px-4 py-3 max-w-[200px]">
                                 <p className="text-sm text-gray-600 truncate">{d.isi}</p>
                                 <p className="text-[11px] text-gray-400 mt-0.5">{fmtDateTime(d.created_at)}</p>
+                                <p className="text-[10px] text-green-700 font-mono mt-0.5">{d.kode_laporan}</p>
                               </td>
 
                               <td className="px-4 py-3 w-36">
@@ -615,6 +666,7 @@ export default function Aspirasi() {
                             <span className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-md px-2 py-0.5">
                               {d.nama_kategori}
                             </span>
+                            <span className="text-[11px] text-green-700 font-mono">{d.kode_laporan}</span>
                             <span className="text-[11px] text-gray-400 flex items-center gap-1">
                               <ClockIcon /> {fmtDateTime(d.created_at)}
                             </span>
@@ -653,7 +705,7 @@ export default function Aspirasi() {
         </div>
       </div>
 
-      {/* Lightbox dengan navigasi (mendukung banyak foto) — z-index dinaikkan di atas modal detail */}
+      {/* Lightbox dengan navigasi (mendukung banyak foto) — z-index di atas modal detail */}
       {lightbox && (
         <div
           className="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center p-4 sm:p-8"
@@ -750,6 +802,29 @@ export default function Aspirasi() {
                 <span className="flex items-center gap-1"><ClockIcon /> {fmtDateTime(selected.created_at)}</span>
               </div>
 
+              {/* Kode laporan & No. HP */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Kode Laporan</label>
+                  <button onClick={() => copyKode(selected.kode_laporan)}
+                    title="Klik untuk menyalin"
+                    className="w-full text-left text-xs font-mono bg-green-50 text-green-800 border border-green-100 rounded-xl px-3 py-2.5 hover:bg-green-100 transition">
+                    {copied ? "✓ Tersalin" : (selected.kode_laporan || "—")}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">No. HP (opsional)</label>
+                  {selected.no_hp ? (
+                    <a href={waLink(selected.no_hp)} target="_blank" rel="noreferrer"
+                      className="block text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-gray-700 hover:border-green-300 transition">
+                      {selected.no_hp} <span className="text-green-600">· WhatsApp</span>
+                    </a>
+                  ) : (
+                    <p className="text-xs bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-gray-300 italic">Tidak dicantumkan</p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Isi Aspirasi</label>
                 <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-4">{selected.isi}</p>
@@ -773,8 +848,29 @@ export default function Aspirasi() {
                 </div>
               )}
 
+              {/* Keterangan tindak lanjut — tampil ke pelapor */}
               <div>
-                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Catatan Internal</label>
+                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Keterangan Tindak Lanjut <span className="normal-case font-normal text-green-600">(tampil ke pelapor)</span>
+                </label>
+                <textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} readOnly={!canManageAspirasi}
+                  placeholder="Tulis perkembangan penanganan yang bisa dilihat pelapor..."
+                  rows={3}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-3 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 resize-none placeholder:text-gray-300 transition" />
+                <div className="flex justify-end mt-2">
+                  <button onClick={handleSaveKeterangan} disabled={!canManageAspirasi || savingKet}
+                    className="text-xs text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-60 font-medium"
+                    style={{ background: ketOk ? "#16a34a" : GREEN }}>
+                    {savingKet ? "Menyimpan..." : ketOk ? "✓ Tersimpan" : "Simpan keterangan"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Catatan internal — tidak pernah dikirim ke publik */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Catatan Internal <span className="normal-case font-normal text-gray-400">(tidak tampil ke pelapor)</span>
+                </label>
                 <textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} readOnly={!canManageAspirasi}
                   placeholder="Tambahkan catatan tindak lanjut..."
                   rows={3}
