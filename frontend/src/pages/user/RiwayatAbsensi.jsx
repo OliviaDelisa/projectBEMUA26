@@ -57,8 +57,8 @@ export default function RiwayatAbsensi({ onBack }) {
     setLoading(true);
     try {
       const [sekreRes, kegRes] = await Promise.all([
-        fetch(`${API}/attendance/secretariat/history/${user.id}?limit=100`),
-        fetch(`${API}/attendance/activity/history/${user.id}?limit=100`),
+        fetch(`${API}/attendance/secretariat/history/${user.id}`),
+        fetch(`${API}/attendance/activity/history/${user.id}`),
       ]);
       const sekre = await sekreRes.json();
       const keg   = await kegRes.json();

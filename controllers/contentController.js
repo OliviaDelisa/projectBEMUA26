@@ -46,6 +46,8 @@ function getAllContent(req, res) {
 }
 
 function createContent(req, res) {
+  console.log("BODY:", req.body);
+  console.log("FILES:", req.files);
   const { content_type, title, description, event_start, event_end, is_published } = req.body;
   if (!CONTENT_TYPES.has(content_type) || !title?.trim()) {
     return res.status(400).json({ message: "Jenis dan judul konten wajib diisi" });

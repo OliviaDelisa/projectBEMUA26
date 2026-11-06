@@ -9,6 +9,6 @@ router.post("/secretariat/checkin",         ctrl.checkInSecretariat);
 
 // Activity routes
 router.post("/activity/checkin",            ctrl.checkInActivity);
-router.get("/activity/history/:user_id",    ctrl.getActivityHistory); // NEW: ?limit=100
+router.get("/activity/history/:user_id",    ctrl.getActivityHistory); // Optional: ?limit=N
 
 module.exports = router;

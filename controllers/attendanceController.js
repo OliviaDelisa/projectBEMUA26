@@ -94,12 +94,14 @@ exports.getHomeData = (req, res) => {
 };
 
 // ── getSecretariatHistory ────────────────────────────────────────
-// GET /attendance/secretariat/history/:user_id?limit=5
+// GET /attendance/secretariat/history/:user_id?limit=N (optional; omitted returns all)
 // FIX: generate virtual "tidak_hadir" untuk hari kerja yang terlewat
 exports.getSecretariatHistory = (req, res) => {
   const { user_id } = req.params;
-  const limit = parseInt(req.query.limit) || 5;
-  const dbLimit = Math.max(limit * 10, 100);
+  const parsedLimit = Number.parseInt(req.query.limit, 10);
+  const hasLimit = Number.isInteger(parsedLimit) && parsedLimit > 0;
+  const limit = hasLimit ? parsedLimit : null;
+  const dbLimit = hasLimit ? Math.max(limit * 10, 100) : null;
 
   // ✅ Ambil start_date periode aktif dulu
   db.query(
@@ -115,10 +117,15 @@ exports.getSecretariatHistory = (req, res) => {
   (err, periods) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
+      const attendanceQuery = `SELECT * FROM secretariat_attendance
+         WHERE user_id = ? ORDER BY date DESC${hasLimit ? " LIMIT ?" : ""}`;
+      const attendanceParams = hasLimit
+        ? [parseInt(user_id), dbLimit]
+        : [parseInt(user_id)];
+
       db.query(
-        `SELECT * FROM secretariat_attendance
-         WHERE user_id = ? ORDER BY date DESC LIMIT ?`,
-        [parseInt(user_id), dbLimit],
+        attendanceQuery,
+        attendanceParams,
         (err, result) => {
           if (err) return res.status(500).json({ message: "Server error" });
 
@@ -200,23 +207,24 @@ if (result.length === 0 && periods[0] && periods[0].is_igm > 0) {
                 ? b.date
                 : new Date(String(b.date).slice(0, 10) + 'T00:00:00+07:00');
               return db2 - da;
-            })
-            .slice(0, limit);
+            });
+          const response = hasLimit ? merged.slice(0, limit) : merged;
 
-          res.json(merged);
+          res.json(response);
         }
       );
     }
   );
 };
 // ── getActivityHistory ───────────────────────────────────────────
-// GET /attendance/activity/history/:user_id?limit=20
+// GET /attendance/activity/history/:user_id?limit=N (optional; omitted returns all)
 exports.getActivityHistory = (req, res) => {
   const { user_id } = req.params;
-  const limit = req.query.limit || 100;
+  const parsedLimit = Number.parseInt(req.query.limit, 10);
+  const hasLimit = Number.isInteger(parsedLimit) && parsedLimit > 0;
 
-  db.query(
-    `SELECT
+  const activityQuery = `
+    SELECT
         aa.id,
         aa.activity_id,
         aa.user_id,
@@ -241,8 +249,14 @@ exports.getActivityHistory = (req, res) => {
          OR aa.status = 'hadir'
        )
      ORDER BY COALESCE(aa.check_in_time, a.start_datetime) DESC
-     LIMIT ?`,
-    [parseInt(user_id), parseInt(limit)],
+     ${hasLimit ? "LIMIT ?" : ""}`;
+  const activityParams = hasLimit
+    ? [parseInt(user_id), parsedLimit]
+    : [parseInt(user_id)];
+
+  db.query(
+    activityQuery,
+    activityParams,
     (err, result) => {
       if (err) return res.status(500).json({ message: "Server error" });
       res.json(result);
